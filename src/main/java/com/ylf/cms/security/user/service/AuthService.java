@@ -52,13 +52,22 @@ public class AuthService {
     }
 
     /**
-     * 每请求重新装载登录用户。返回 null 表示"身份已失效"（用户被删或被停用），
-     * 由拦截器统一转 401——这样停用一个账号能立刻踢下线，不用等 Session 过期。
+     * 每请求重新装载登录用户。
+     *
+     * 两种失效分开表达，拦截器据此回不同的码：
+     * - 用户已被删除 → 返回 null，回 40100 未登录；
+     * - 用户已被停用 → 抛 40102，前端能提示"账号已被停用"，而不是再跳一次登录页。
+     *
+     * 混成一个 null 的话，用户拿正确口令反复登录也只会看到"未登录"，
+     * 真正的原因（管理员停用了他）永远露不出来。
      */
     public LoginUser loadLoginUser(Long userId) {
         SysUser user = userMapper.selectById(userId);
-        if (user == null || user.getStatus() == null || user.getStatus() != 1) {
+        if (user == null) {
             return null;
+        }
+        if (user.getStatus() == null || user.getStatus() != 1) {
+            throw new BizException(ResultCode.ACCOUNT_DISABLED);
         }
         return toLoginUser(user);
     }
