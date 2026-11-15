@@ -31,4 +31,48 @@
           AND a.deleted = 0
     </select>
 
+    <!--
+      分页数据联查：作者昵称、分类名称在同一条 SQL 里带出。
+      分类筛选用 categoryIds（Service 已把所选分类连同子孙展开成 id 列表），
+      单值 categoryId 不直接出现在 SQL 里，避免父分类漏道子分类文章。
+      总数由 MP 分页插件按同一 WHERE 自动生成 count，不在这里手写第二份条件。
+    -->
+    <select id="selectPageVO" resultType="com.ylf.cms.content.vo.ArticleVO">
+        SELECT a.id,
+               a.title,
+               a.summary,
+               a.content,
+               a.author_id    AS authorId,
+               a.category_id  AS categoryId,
+               a.status       AS status,
+               a.version      AS version,
+               a.view_count   AS viewCount,
+               a.submit_time  AS submitTime,
+               a.publish_time AS publishTime,
+               a.create_time  AS createTime,
+               a.update_time  AS updateTime,
+               u.nickname     AS authorName,
+               c.name         AS categoryName
+        FROM cms_article a
+                 LEFT JOIN sys_user u ON a.author_id = u.id AND u.deleted = 0
+                 LEFT JOIN cms_category c ON a.category_id = c.id AND c.deleted = 0
+        WHERE a.deleted = 0
+        <if test="query.title != null and query.title != ''">
+            AND a.title LIKE CONCAT('%', #{query.title}, '%')
+        </if>
+        <if test="query.status != null and query.status != ''">
+            AND a.status = #{query.status}
+        </if>
+        <if test="query.authorId != null">
+            AND a.author_id = #{query.authorId}
+        </if>
+        <if test="query.categoryIds != null and query.categoryIds.size() > 0">
+            AND a.category_id IN
+            <foreach collection="query.categoryIds" item="cid" open="(" separator="," close=")">
+                #{cid}
+            </foreach>
+        </if>
+        ORDER BY a.create_time DESC
+    </select>
+
 </mapper>

@@ -55,3 +55,20 @@
 - 分页在 D3 先做单表分页（`selectPage + toVO`），作者昵称/分类名暂空：一开始想直接在 D3 里逐条补名字，但那正是 N+1，决定留到 D4 用联查一次解决，D3 只保证"分页+count 两条 SQL"的骨架；
 - `selectCount` 在 MP 3.5.x 返回 `Long` 而非 `int`，`countByAuthor` 返回类型定为 `long`，注意 null 兜底；
 - 审核驳回必须带意见、下架必须带原因，缺了给 40000 而不是 40901——这两者是"参数缺失"而非"状态不允许"，错误码区分开便于前端提示。
+
+## D4 · 2026-11-15 · 分页联查与分类校验
+
+**做了什么**：
+- 接入 M3 的 `CategoryService`：`create`/`update` 走 `requireEnabled` 校验分类存在且启用；`page` 用 `descendantIds` 把所选分类连同子孙展开成 `categoryIds`；
+- 分页改为一条 LEFT JOIN 联查 `sys_user` + `cms_category`（`selectPageVO`），作者昵称/分类名随数据一次带出；总数由 MP 分页插件按同一 WHERE 自动 count，整条链路最多 2 条 SQL；
+- Mapper 声明 `selectPageVO`（Page 参数 + List 返回），XML 动态条件：title LIKE、status eq、categoryIds IN、authorId eq。
+
+**为什么**：
+- 分类树口径（停用/层级/子孙）只由 M3 维护一处，M2 不直连 `cms_category` 表，避免两边各写一套父子展开；
+- 不逐行补作者/分类名——那是 N+1，列表翻页 SQL 数会随行数增长；联查一次出全；
+- `categoryIds` 在 Service 内部生成并标 `@JsonIgnore`，前端只传 categoryId，传不进跨父分类的任意 id 集合。
+
+**卡点**：
+- Mapper 分页方法返回 List 而非 Page：records 回填到 Page 参数对象上，Service 里把 List 直接赋给 Page 编译报错；改为先 new Page、调方法、再取 `page.getRecords()`；
+- 远程 main 在 D3 之后被 M3 推了 catalog 包（`5459378`），worktree 先 ff-only 同步再改代码，避免覆盖他人分类实现；
+- 分类停用/不存在的错误码复用 M3 `requireEnabled` 抛的 BAD_REQUEST(40000)，M2 不另造错误码，`ResultCode` 表不扩展。

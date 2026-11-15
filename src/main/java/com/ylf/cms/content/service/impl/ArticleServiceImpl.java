@@ -2,6 +2,7 @@ package com.ylf.cms.content.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.ylf.cms.catalog.category.service.CategoryService;
 import com.ylf.cms.common.constant.Perm;
 import com.ylf.cms.common.exception.BizException;
 import com.ylf.cms.common.result.PageResult;
@@ -30,21 +31,27 @@ import java.time.LocalDateTime;
  * 2) 乐观锁：所有"读-改-写"都带 version 做 CAS，冲突返回 40900，不静默覆盖；
  * 3) 越权：作者只能动自己的稿子，管理员凭 article:*:any 权限放行，否则 40301。
  *
- * 状态流转统一走 transition()，避免各方法各写一遍 update 导致某处漏了 version。
+ * 分类相关只读校验与子分类展开走 M3 的 {@link CategoryService}，M2 不直连
+ * cms_category 表——分类树口径（停用、层级、子孙关系）只维护一处。
  */
 @Service
 public class ArticleServiceImpl implements ArticleService {
 
     private final CmsArticleMapper articleMapper;
 
-    public ArticleServiceImpl(CmsArticleMapper articleMapper) {
+    private final CategoryService categoryService;
+
+    public ArticleServiceImpl(CmsArticleMapper articleMapper, CategoryService categoryService) {
         this.articleMapper = articleMapper;
+        this.categoryService = categoryService;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long create(ArticleSaveDTO dto) {
         LoginUser user = UserContext.require();
+        categoryService.requireEnabled(dto.getCategoryId());
+
         CmsArticle article = new CmsArticle();
         article.setTitle(dto.getTitle());
         article.setSummary(dto.getSummary());
@@ -81,27 +88,20 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     public PageResult<ArticleVO> page(ArticleQueryDTO query) {
-        Page<CmsArticle> page = new Page<>(query.getPageNum(), query.getPageSize());
-        LambdaQueryWrapper<CmsArticle> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.hasText(query.getTitle())) {
-            wrapper.like(CmsArticle::getTitle, query.getTitle());
-        }
-        if (StringUtils.hasText(query.getStatus())) {
-            wrapper.eq(CmsArticle::getStatus, query.getStatus());
-        }
         if (query.getCategoryId() != null) {
-            // 子分类展开在 D4 接入（届时改为 categoryIds IN 查询）
-            wrapper.eq(CmsArticle::getCategoryId, query.getCategoryId());
+            // 父分类筛选要带出全部子分类下的文章；descendantIds 含自身。
+            // 展开结果放进内部字段 categoryIds，SQL 用 IN 一次筛完。
+            query.setCategoryIds(categoryService.descendantIds(query.getCategoryId()));
         }
-        if (query.getAuthorId() != null) {
-            wrapper.eq(CmsArticle::getAuthorId, query.getAuthorId());
-        }
-        wrapper.orderByDesc(CmsArticle::getCreateTime);
 
-        Page<CmsArticle> result = articleMapper.selectPage(page, wrapper);
-        // 作者昵称/分类名称的联查在 D4 落地：这里先单表分页，只为把
-        // 分页与总数两条 SQL 的骨架跑通，避免 D3 就引入逐行补名字的 N+1。
-        return PageResult.of(result, this::toVO);
+        Page<ArticleVO> page = new Page<>(query.getPageNum(), query.getPageSize());
+        articleMapper.selectPageVO(page, query);
+        // 联查 SQL 只出状态码，中文描述在这里按枚举补，避免在 SQL 里写 CASE WHEN。
+        page.getRecords().forEach(vo -> {
+            ArticleStatusEnum status = ArticleStatusEnum.of(vo.getStatus());
+            vo.setStatusDesc(status == null ? vo.getStatus() : status.getDesc());
+        });
+        return PageResult.of(page);
     }
 
     @Override
@@ -110,6 +110,7 @@ public class ArticleServiceImpl implements ArticleService {
         CmsArticle existing = loadExisting(dto.getId());
         requireStatus(existing, ArticleStatusEnum.DRAFT, ArticleStatusEnum.REJECTED);
         checkWritableBy(existing);
+        categoryService.requireEnabled(dto.getCategoryId());
 
         CmsArticle update = new CmsArticle();
         update.setId(dto.getId());
@@ -248,25 +249,5 @@ public class ArticleServiceImpl implements ArticleService {
 
     private boolean isOwner(CmsArticle article, LoginUser user) {
         return user.getId() != null && user.getId().equals(article.getAuthorId());
-    }
-
-    private ArticleVO toVO(CmsArticle article) {
-        ArticleVO vo = new ArticleVO();
-        vo.setId(article.getId());
-        vo.setTitle(article.getTitle());
-        vo.setSummary(article.getSummary());
-        vo.setContent(article.getContent());
-        vo.setAuthorId(article.getAuthorId());
-        vo.setCategoryId(article.getCategoryId());
-        vo.setStatus(article.getStatus());
-        ArticleStatusEnum status = ArticleStatusEnum.of(article.getStatus());
-        vo.setStatusDesc(status == null ? article.getStatus() : status.getDesc());
-        vo.setVersion(article.getVersion());
-        vo.setViewCount(article.getViewCount());
-        vo.setSubmitTime(article.getSubmitTime());
-        vo.setPublishTime(article.getPublishTime());
-        vo.setCreateTime(article.getCreateTime());
-        vo.setUpdateTime(article.getUpdateTime());
-        return vo;
     }
 }
