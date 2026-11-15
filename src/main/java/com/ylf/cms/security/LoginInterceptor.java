@@ -2,6 +2,7 @@ package com.ylf.cms.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ylf.cms.common.constant.SessionKeys;
+import com.ylf.cms.common.exception.BizException;
 import com.ylf.cms.common.result.Result;
 import com.ylf.cms.common.result.ResultCode;
 import com.ylf.cms.security.user.service.AuthService;
@@ -22,6 +23,9 @@ import java.nio.charset.StandardCharsets;
  * Session 里只存 userId，每次请求回查数据库装载身份。代价是每个请求多两条查询，
  * 换来的是"停用账号立即生效、改角色立即生效"——课程演示里改完权限还要重新登录
  * 才能看到效果，会很难解释。
+ *
+ * 40100（未登录 / 账号已删除）与 40102（账号已停用）分开返回：
+ * 前端据此决定跳登录页还是提示"账号已被停用"，混成一个码只能靠字符串猜。
  */
 @Component
 @RequiredArgsConstructor
@@ -36,14 +40,22 @@ public class LoginInterceptor implements HandlerInterceptor {
         HttpSession session = request.getSession(false);
         Long userId = session == null ? null : (Long) session.getAttribute(SessionKeys.LOGIN_USER_ID);
 
-        LoginUser user = userId == null ? null : authService.loadLoginUser(userId);
+        if (userId == null) {
+            return reject(request, response, ResultCode.UNAUTHORIZED);
+        }
+
+        LoginUser user;
+        try {
+            user = authService.loadLoginUser(userId);
+        } catch (BizException e) {
+            // 账号被停用：旧 Session 立刻作废，并明确回 40102
+            session.invalidate();
+            return reject(request, response, e.getResultCode());
+        }
         if (user == null) {
-            if (session != null) {
-                // 用户被删除或停用：旧 Session 立刻作废，不留半死状态
-                session.invalidate();
-            }
-            reject(request, response);
-            return false;
+            // 用户已被删除：同样作废旧 Session，不留半死状态
+            session.invalidate();
+            return reject(request, response, ResultCode.UNAUTHORIZED);
         }
         UserContext.set(user);
         return true;
@@ -56,13 +68,14 @@ public class LoginInterceptor implements HandlerInterceptor {
         UserContext.clear();
     }
 
-    private void reject(HttpServletRequest request, HttpServletResponse response) throws Exception {
+    private boolean reject(HttpServletRequest request, HttpServletResponse response, ResultCode code)
+            throws Exception {
         String path = request.getRequestURI();
         if (path.startsWith("/api/")) {
-            response.setStatus(ResultCode.UNAUTHORIZED.getStatus().value());
+            response.setStatus(code.getStatus().value());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            response.getWriter().write(objectMapper.writeValueAsString(Result.fail(ResultCode.UNAUTHORIZED)));
+            response.getWriter().write(objectMapper.writeValueAsString(Result.fail(code)));
         } else {
             String next = request.getRequestURI();
             String query = request.getQueryString();
@@ -71,5 +84,6 @@ public class LoginInterceptor implements HandlerInterceptor {
             }
             response.sendRedirect("/login?next=" + URLEncoder.encode(next, StandardCharsets.UTF_8.name()));
         }
+        return false;
     }
 }
