@@ -120,3 +120,29 @@
 **合并别人分支时撞了三个文件**：推送被拒，远程 `main` 上已经有 chuanzi908 的 PR #1（M1-S1：实体与建表脚本对齐），里面同样有 `SysPermission`、`SysPermissionMapper`、`SysRolePermissionMapper`。前两个与今天新增的语义等价，取他的版本（注释更全，且他补了 `SysRolePermission` / `SysUserRole` 两个实体和一条"实体与 `schema.sql` 对不上就红"的测试）。第三个他做成 `BaseMapper<SysRolePermission>`，而 D6 需要按复合主键的三个便捷方法——合并成"`BaseMapper` + 三个方法"，并把 `insert` 改名为 `insertIgnore`：`BaseMapper` 已经注入了一个叫 `insert` 的语句，同名声明会撞 statement id；而且这里要的是 `insert ignore` 的幂等插入，与"重复键抛异常"是两种不同的失败语义。合并后 `Tests run: 39`（两人的用例都在），`BUILD SUCCESS`。
 
 **日期**：D6 实际完成于 11-09，计划表写 11-06。按规则 4 顺延。
+
+## D7 · 2026-11-16 · 业务层·分类只读与计数
+
+**做了什么**：`catalog/category` 包——`CmsCategory` 实体、`CmsCategoryMapper`（`selectAllAlive` 与按分类分组的 `countPublishedByCategory`）、`CategoryCountRow`、`CategoryVO`（带 `articleCount` 与 `children`）、`CategoryService`（`tree` / `listFlat` / `descendantIds` / `requireEnabled`）。新增 `CategoryTreeTest` 10 条、`CategoryCountDbTest` 3 条（真实库，平时跳过）与 `scripts/verify-category-count.sh`。
+
+**范围为什么变了**：拉下来的 `main` 上已有 M2（wangchu67162-netizen）的 D1–D3，`ArticleService` 的**分页列表与 `countByAuthor` 已经落地**；计划表里 D7 的另一半因此不需要重写。今天只补智能体真正要读、而两个模块都还没提供的分类侧：它要回答"站点配了分类没有"（`listFlat().isEmpty()`）和"某分类下有多少篇文章"（树上的数字）。分类的新增/改名/删除属于分类管理，不在今天的范围，所以这一版是只读的。
+
+**计数口径写死在三处**（Service javadoc、Mapper SQL、测试断言）：节点的数字 = 自身 + 全部子孙下**已发布且未删除**的文章数；与分类自身是否启用无关——停用只是前端不给选，不改变历史文章的归属。口径必须唯一，否则智能体会报一个"看起来对、和后台列表对不上"的数字。
+
+**三个刻意的设计点**：
+- `onlyEnabled=true` 时，停用分类**连同整棵子树**移除，而不是把子节点挂到根上。挂根会让"后端"看起来像个一级分类，用户会以为站点结构变了；计数在剪枝之前算好，所以父节点的数字仍包含被隐藏子树。
+- 父分类被逻辑删除时，子分类挂到根上并发保留自己的数字——否则删一个中间分类会让它的子树凭空消失。
+- `descendantIds` 用显式栈 + `visited`，`parent_id` 指向自己或形成环时不重复展开、不死循环；分类不存在返回空列表而不是抛异常，调用方在拼 `IN` 条件时天然得到"没有结果"。
+
+**判据（两层）**：
+- 逻辑层（`CategoryTreeTest`）：树形状、`技术 = 后端 9 + 前端 1 = 10`、空叶子是 0 而不是 null、剪枝后数字不变、子树 id 覆盖三级、自环不死循环、孤儿挂根、停用分类发布时拒（40000）。
+- 真实库（`CategoryCountDbTest` + `scripts/verify-category-count.sh`）：起临时 MariaDB 导入 `schema.sql` + `data.sql`，断言树上每个节点的数字 == 用 `JdbcTemplate` 独立算出的子树 `COUNT`。**子树 id 在测试里写死，不复用被测的 `descendantIds`**——否则尺子和被测对象是同一把，汇总漏一级时两边一起错、一起绿。
+
+**两次注入，都真的能红**：
+1. 删掉 `rollUp` 里的 `total += rollUp(child)` → `CategoryTreeTest` 2 条红（`后端 = 9` 变 0），脚本随之退出码 1（`分类 技术 的数字与库里的 COUNT 对不上 ==> expected: <10> but was: <0>`）。
+2. 把 Mapper 的 `AND status = 'PUBLISHED'` 去掉（口径改成全部状态）→ 真实库 2 条红：`Java 应为 6；算上未发布就是 9 ==> expected: <6> but was: <9>`、`分类 技术 ... expected: <10> but was: <17>`。
+两次验证完均已还原，`mvn -o package` 绿，`Tests run: 50, Failures: 0, Errors: 0, Skipped: 1`（跳过的那条就是真实库判据，没有库时不跑）。
+
+**一个值得记的坑**：`scripts/verify-category-count.sh` 第一版用 `mvn -q test`，只看退出码——但 `@EnabledIfSystemProperty` 不满足条件时测试是 **skipped**，`mvn` 照样返回 0，于是"没量"会被当成"量过了"。改成跑完必须 `grep` 到 `Tests run: 3, Failures: 0, Errors: 0, Skipped: 0`，否则脚本自己 `exit 1` 并打印实际条数。
+
+**没做的事**：`ArticleService` 的 `countByAuthor` 口径与智能体分状态计数（驳回数、草稿数）的对齐留给 M2——他们 D4–D6 正在改这个类的分页与测试，同一天改同一处只会互相踩。今天的 DB 判据已经把"分类数字与库里同源"钉住，D10 接建议服务时再核对文章侧。
