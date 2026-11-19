@@ -1,0 +1,105 @@
+\documentclass[zihao=-4,UTF8,openany]{ctexart}
+
+\usepackage[a4paper,left=2.5cm,right=2.5cm,top=2.8cm,bottom=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{newunicodechar}
+\newunicodechar{✓}{$\checkmark$}
+\newunicodechar{✗}{$\times$}
+\newunicodechar{∈}{$\in$}
+\newunicodechar{▼}{$\blacktriangledown$}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{calc}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{fancyhdr,needspace,enumitem,placeins}
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{
+  language=Java,
+  basicstyle=\footnotesize\ttfamily,
+  keywordstyle=\color{blue!60!black}\bfseries,
+  commentstyle=\color{green!45!black},
+  stringstyle=\color{red!60!black},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=6pt,
+  frame=single,
+  rulecolor=\color{gray!40},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=4
+}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric}
+\usepackage[hidelinks]{hyperref}
+
+\graphicspath{{media/}}
+
+\setlength{\parindent}{2em}
+\setlength{\parskip}{1pt}
+\emergencystretch=2em
+\captionsetup{font=small}
+
+% 允许代码标识符在下划线处换行，减少越界
+\renewcommand{\_}{\textunderscore\allowbreak}
+
+\usepackage{etoolbox}
+\AtBeginEnvironment{longtable}{\small}
+
+\hypersetup{
+  pdftitle={企业级 CMS 内容管理系统 · 课程设计报告},
+  pdfauthor={孙贤泽、姚霖锋、潘凤乐、王储},
+}
+
+\setcounter{tocdepth}{2}
+\raggedbottom
+\setlist{itemsep=2pt,topsep=4pt,parsep=0pt}
+\setlength{\headheight}{15pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small JAVA 框架技术（一）课程设计}
+\fancyhead[R]{\small 云章 CMS 内容管理系统}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\ctexset{section={beforeskip=18pt,afterskip=10pt},subsection={beforeskip=12pt,afterskip=6pt},subsubsection={beforeskip=9pt,afterskip=4pt}}
+\clubpenalty=10000
+\widowpenalty=10000
+\captionsetup{font=small,labelfont=bf,skip=5pt}
+\lstset{basicstyle=\small\ttfamily,aboveskip=8pt,belowskip=8pt,xleftmargin=1em,framexleftmargin=0.4em}
+\newcommand{\reportfigure}[4][0.94\linewidth]{%
+  \begin{figure}[H]\centering
+  \includegraphics[width=#1,height=0.48\textheight,keepaspectratio]{#2}
+  \caption{#3}\label{#4}
+  \end{figure}}
+
+\begin{document}
+\begin{titlepage}
+\centering
+\vspace*{1.8cm}
+
+{\zihao{2}\heiti《JAVA 框架技术（一）》}\\[0.8cm]
+{\zihao{1}\heiti 课~程~设~计~报~告}\\[1.4cm]
+{\zihao{2}\heiti 企业级 CMS 内容管理系统}\\[0.6cm]
+{\zihao{4}\heiti 基于 Spring Boot 与 MyBatis-Plus 的实现}\\[3.2cm]
+
+{\zihao{4}\songti
+\begin{tabular}{rl}
+姓\quad 名： & 孙贤泽 \quad 姚霖锋 \quad 潘凤乐 \quad 王储 \\[1.1cm]
+学\quad 号： & 20241923 \quad 20241891 \quad 20241922 \quad 20241925 \\[1.1cm]
+班\quad 级： & \underline{\hspace{5.5cm}} \\[1.1cm]
+指导教师： & \underline{\hspace{5.5cm}} \\
+\end{tabular}}
+
+\vfill
+{\zihao{4}2026 年 11 月}
+\end{titlepage}
+
+\pagenumbering{Roman}
+{\small\tableofcontents}
+\clearpage
+\pagenumbering{arabic}

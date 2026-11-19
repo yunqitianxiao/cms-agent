@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' · 云章 CMS'">云章 CMS</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <link rel="stylesheet" th:href="@{/css/refinement.css}">
+    <script type="module" th:src="@{/js/core/layout.js}"></script>
+</head>
+<body>
+
+<!-- 侧边栏：菜单项用 data-perm 标注所需权限，由 boot.js 按当前用户隐藏无权项 -->
+<aside class="sidebar" th:fragment="sidebar(active)">
+    <button class="mobile-nav-toggle" type="button" aria-label="展开导航" aria-expanded="false">☰</button>
+    <div class="brand">
+        <div class="mark">云</div>
+        <div class="name">云章 CMS</div>
+        <div class="ver">v1.0</div>
+    </div>
+
+    <div class="nav-group">
+        <div class="label">概览</div>
+        <a class="nav-item" href="/app/dashboard" data-nav="dashboard"
+           th:classappend="${active=='dashboard'} ? ' active'">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span>工作台</span>
+        </a>
+    </div>
+
+    <div class="nav-group">
+        <div class="label">内容</div>
+        <a class="nav-item" href="/app/articles" data-nav="articles"
+           th:classappend="${active=='articles'} ? ' active'"
+           data-perm="article:read">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span><span>文章列表</span>
+        </a>
+        <a class="nav-item" href="/app/article-edit" data-nav="article-edit"
+           th:classappend="${active=='article-edit'} ? ' active'"
+           data-perm="article:create">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14z"/></svg></span><span>写新文章</span>
+        </a>
+        <a class="nav-item" href="/app/review" data-nav="review"
+           th:classappend="${active=='review'} ? ' active'"
+           data-perm="article:audit">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-9M8 11l4 4L21 4"/></svg></span><span>内容审核</span><span class="count" id="nav-pending-count"></span>
+        </a>
+        <a class="nav-item" href="/app/categories" data-nav="categories"
+           th:classappend="${active=='categories'} ? ' active'"
+           data-perm="category:write">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg></span><span>分类管理</span>
+        </a>
+    </div>
+
+    <div class="nav-group">
+        <div class="label">账号与权限</div>
+        <a class="nav-item" href="/app/users" data-nav="users"
+           th:classappend="${active=='users'} ? ' active'"
+           data-perm="user:manage">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></svg></span><span>用户管理</span>
+        </a>
+        <a class="nav-item" href="/app/roles" data-nav="roles"
+           th:classappend="${active=='roles'} ? ' active'"
+           data-perm="role:manage,user:manage">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12l3 3 5-6"/></svg></span><span>角色与权限</span>
+        </a>
+    </div>
+
+    <div class="nav-group">
+        <div class="label">系统</div>
+        <a class="nav-item" href="/app/logs" data-nav="logs"
+           th:classappend="${active=='logs'} ? ' active'"
+           data-perm="log:read">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 12h8M8 17h5"/></svg></span><span>操作日志</span>
+        </a>
+        <a class="nav-item" href="/portal" target="_blank" rel="noopener">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3h8v8M21 3 10 14M10 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-5"/></svg></span><span>浏览前台</span>
+        </a>
+    </div>
+
+    <div class="sidebar-foot">
+        <div class="user-chip">
+            <div class="avatar" id="me-avatar">·</div>
+            <div class="who">
+                <div class="name" id="me-name">加载中…</div>
+                <div class="role" id="me-role">—</div>
+            </div>
+            <button class="out" id="btn-logout" title="退出登录">退出</button>
+        </div>
+    </div>
+</aside>
+
+</body>
+</html>
