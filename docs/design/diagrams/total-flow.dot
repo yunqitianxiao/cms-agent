@@ -1,0 +1,111 @@
+digraph TotalBusinessFlow {
+  rankdir=TB;
+  graph [fontname="Microsoft YaHei", fontsize=15, labelloc=t,
+         label="CMS 内容管理系统 · 总体业务流程图",
+         nodesep=0.35, ranksep=0.5, pad=0.4, compound=true, splines=polyline];
+  node [fontname="Microsoft YaHei", fontsize=10.5, shape=box,
+        style="rounded,filled", fillcolor="#FFFFFF", penwidth=1.2,
+        margin="0.15,0.09"];
+  edge [fontname="Microsoft YaHei", fontsize=9.5, color="#5B6B8C",
+        arrowsize=0.7, penwidth=1.0];
+
+  /* ============ 一、接入与登录认证 ============ */
+  subgraph cluster_auth {
+    label="一、接入与登录认证（基于服务器会话，而非前端令牌）";
+    fontsize=12; color="#3B6FD4"; fillcolor="#F4F8FE"; style="rounded,filled";
+    node [color="#3B6FD4"];
+    start      [label="访问系统", shape=ellipse, fillcolor="#E8F0FE"];
+    d_protected [label="受保护路径？\n（/api、/app 接口）", shape=diamond,
+                 fillcolor="#FFF4D6", color="#D4A93B", margin="0.04,0.02"];
+    portal     [label="前台门户 / 登录 / 注册\n（拦截器放行）", fillcolor="#EAF7EF", color="#3E9C68"];
+    login_inter [label="登录拦截器\n会话取用户编号，回查数据库装载身份"];
+    d_valid    [label="身份有效？\n（账号未停用 / 删除）", shape=diamond,
+                fillcolor="#FFF4D6", color="#D4A93B", margin="0.04,0.02"];
+    block401   [label="拦截：接口返回 401\n页面重定向登录，旧会话作废",
+                fillcolor="#FDECEC", color="#C0504D"];
+    user_ctx   [label="用户上下文\n装载当前登录用户"];
+
+    start -> d_protected;
+    d_protected -> portal [label="否"];
+    d_protected -> login_inter [label="是"];
+    login_inter -> d_valid;
+    d_valid -> block401 [label="否"];
+    d_valid -> user_ctx [label="是"];
+  }
+
+  /* ============ 二、切面权限校验 ============ */
+  subgraph cluster_perm {
+    label="二、切面权限校验（日志切面在外层，权限切面在内层）";
+    fontsize=12; color="#7B5EB0"; fillcolor="#F6F2FC"; style="rounded,filled";
+    node [color="#7B5EB0"];
+    d_api    [label="接口级权限校验\n满足权限注解要求？", shape=diamond,
+              fillcolor="#FFF4D6", color="#D4A93B", margin="0.04,0.02"];
+    block403 [label="403 权限不足\n记拒绝并留痕", fillcolor="#FDECEC", color="#C0504D"];
+    d_any    [label="数据级归属校验\n持有通配权限？", shape=diamond,
+              fillcolor="#FFF4D6", color="#D4A93B", margin="0.04,0.02"];
+    d_owner  [label="数据归属当前用户？", shape=diamond,
+              fillcolor="#FFF4D6", color="#D4A93B", margin="0.04,0.02"];
+    block4031 [label="4031 横向越权拦截", fillcolor="#FDECEC", color="#C0504D"];
+    pass     [label="校验通过，进入业务", fillcolor="#EAF7EF", color="#3E9C68"];
+
+    user_ctx -> d_api;
+    d_api -> block403 [label="不通过"];
+    d_api -> d_any [label="通过"];
+    d_any -> pass [label="是·通配放行"];
+    d_any -> d_owner [label="否"];
+    d_owner -> block4031 [label="不属本人"];
+    d_owner -> pass [label="属于本人"];
+  }
+
+  /* ============ 三、角色分流 ============ */
+  subgraph cluster_role {
+    label="三、角色分流（角色可叠加，权限取并集）";
+    fontsize=12; color="#2F8F8F"; fillcolor="#F0F8F8"; style="rounded,filled";
+    node [color="#2F8F8F"];
+    auditor [label="审核员\n审核（不能审自己）· 上下架"];
+    admin   [label="管理员\n用户 / 角色 / 权限 / 分类 / 日志"];
+    author  [label="作者\n新建 / 编辑 / 提交 / 撤回"];
+    guest   [label="游客\n浏览已发布文章"];
+    lognote [label="操作日志：仅操作日志注解的方法触发\n同步执行 · 独立事务，业务回滚日志不丢\n结果分成功 / 拒绝 / 失败",
+             color="#3E9C68", fillcolor="#EAF7EF"];
+    { rank=same; auditor; admin; author; guest; }
+  }
+
+  /* ============ 四、文章状态机 ============ */
+  subgraph cluster_state {
+    label="四、文章状态机（五态七迁，非法迁移即拒绝）";
+    fontsize=12; color="#D08A3E"; fillcolor="#FDF5EC"; style="rounded,filled";
+    node [color="#D08A3E"];
+    s_draft     [label="草稿", fillcolor="#EDF2FB", color="#3B6FD4"];
+    s_pending   [label="待审核", fillcolor="#FFF9E6", color="#C9A227"];
+    s_published [label="已发布", fillcolor="#EAF7EF", color="#3E9C68"];
+    s_rejected  [label="已驳回", fillcolor="#FDECEC", color="#C0504D"];
+    s_offline   [label="已下架", fillcolor="#F2F2F2", color="#7A7A7A"];
+    delrule     [label="删除（状态机外规则）\n仅草稿、已驳回可逻辑删除\n已发布 / 已下架须先回草稿",
+                 shape=note, fillcolor="#FDECEC", color="#C0504D"];
+    { rank=same; s_pending; s_rejected; }
+    { rank=same; s_published; s_offline; }
+    s_pending -> s_rejected [style=invis];
+    s_published -> s_offline [style=invis];
+  }
+
+  /* ============ 主干连接（锚定区块顺序） ============ */
+  pass -> author;
+  pass -> auditor [constraint=false];
+  pass -> admin   [constraint=false];
+  pass -> guest   [constraint=false];
+  pass -> lognote [style=dashed, constraint=false];
+  author -> s_draft;
+  guest -> s_published [style=dashed, constraint=false];
+  auditor -> s_pending [style=dashed, constraint=false];
+
+  /* ============ 状态机七迁 ============ */
+  s_draft -> s_pending    [label="提交", color="#3B6FD4"];
+  s_pending -> s_draft    [label="撤回", style=dashed, constraint=false];
+  s_pending -> s_published [label="审核通过", color="#3E9C68"];
+  s_pending -> s_rejected  [label="驳回·意见必填", color="#C0504D"];
+  s_rejected -> s_draft    [label="修改", style=dashed, constraint=false];
+  s_published -> s_offline [label="下架·原因必填", constraint=false];
+  s_offline -> s_pending   [label="重新提交", style=dashed, constraint=false];
+  delrule -> s_draft      [style=dotted, color="#C0504D", arrowhead=none, constraint=false];
+}
