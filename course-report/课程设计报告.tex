@@ -767,9 +767,59 @@ trace\_id & VARCHAR(32) & DEFAULT NULL & 请求追踪 ID，对应响应中的 tr
 cost\_ms & BIGINT & DEFAULT NULL & 耗时 \\
 \end{longtable}
 
-日志表的设计围绕一个前提：审计记录的声明周期必须长于被审计的业务数据。user\_id 不建外键就是基于这一点——操作日志需要保留比用户账号更久，不能因为用户被删除就跟着级联清除。同时 username 冗余存一份，即使操作人的账号已不在用户表中，日志也能通过用户名提供可读线索。result 字段区分三类结果：SUCCESS 表示正常执行，DENIED 表示请求被权限切面拦截（越权尝试），FAIL 表示业务处理期间发生异常。这三类的区分让"哪些越权行为曾被尝试过"可以在日志页直接筛选出来，而不需要从大量的 SUCCESS 记录中人工判断。params 字段存入的是经过 MaskUtil 脱敏后的请求参数，password、token 等敏感字段在落库前已替换为 ***。trace\_id 与 HTTP 响应头中的 traceId 一一对应，用户报障时可凭它在服务端日志中定位到该次请求的完整链路。
+\texttt{sys\_log} 是系统的操作流水账，自动记录“谁、在什么时间、干了什么、结果如何”，用于事后追溯和审计。这张表只追加、不修改，字段里也没有 \texttt{deleted} 和审计字段——日志本身就是审计记录，不需要再被审计。
 
-日志表有三条索引。idx\_log\_time(create\_time) 覆盖按时间范围查询（日志页的默认视图）。idx\_log\_user(user\_id) 覆盖按操作人筛选。idx\_log\_type(log\_type, create\_time) 覆盖按类型加时间组合查询（如筛选所有 DENIED 记录）。
+关键字段分五组：
+
+\begin{itemize}
+\item \textbf{标识组：}\texttt{id}（自增主键）
+\item \textbf{操作人组：}\texttt{user\_id}（操作人 id，弱引用，可空）、\texttt{username}（冗余的用户名）
+\item \textbf{请求组：}
+  \begin{itemize}
+  \item \texttt{log\_type}（日志类型）：日志的业务分类，共七类（\texttt{LOGIN/ARTICLE/AUDIT/CATEGORY/USER/ROLE/AI\_QUERY}）
+  \item \texttt{operation}（操作名）：给人看的操作描述，如“新建文章”，回答“干了什么”
+  \item \texttt{method}（后端方法）：实际执行的类名\#方法名，如 \texttt{ArticleService\#create}，供开发定位代码
+  \item \texttt{uri/http\_method}（请求路径与方式）：请求的接口地址与方式（GET 查询 / POST 新建 / PUT 修改 / DELETE 删除）
+  \item \texttt{params}（脱敏后的入参）：请求携带的参数，敏感字段已替换为 ***
+  \item \texttt{ip}（来源 IP）：发起请求的设备地址
+  \end{itemize}
+\item \textbf{结果组：}\texttt{result}（执行结果）、\texttt{error\_msg}（失败原因）
+\item \textbf{追踪组：}\texttt{trace\_id}（请求追踪 id）、\texttt{cost\_ms}（耗时，毫秒）
+\end{itemize}
+
+\noindent\textbf{一、设计前提：审计记录要活得比业务数据久}
+
+\texttt{user\_id} 用弱引用、不建外键。日志必须比用户账号保存得更久，建外键会导致用户一删、相关日志被级联清除，审计链条直接断掉。\texttt{username} 冗余存一份，哪怕操作人的账号后来被删除，日志里仍留着他的用户名，能直接读出“这事是谁干的”，不用再对着一个失效 id 无从查证。
+
+\noindent\textbf{二、result 三态：把失败原因分开记录}
+
+\texttt{SUCCESS} 表示操作正常执行成功，\texttt{DENIED} 表示请求被权限切面拦截、也就是一次越权尝试，\texttt{FAIL} 表示业务处理过程中发生了异常。分开记录的价值在于：想查“系统里出现过哪些越权行为”，直接筛选 \texttt{DENIED} 即可，不用从大量 \texttt{SUCCESS} 记录里人工辨认；\texttt{error\_msg} 同时记下失败的具体原因。
+
+\noindent\textbf{三、log\_type 与 params 脱敏}
+
+\texttt{log\_type} 把日志归为七类：\texttt{LOGIN} 登录、\texttt{ARTICLE} 文章、\texttt{AUDIT} 审核、\texttt{CATEGORY} 分类、\texttt{USER} 用户、\texttt{ROLE} 角色、\texttt{AI\_QUERY} 引导问答。\texttt{params} 不存原始入参，先经过 \texttt{MaskUtil} 脱敏工具处理，\texttt{password}、\texttt{token} 这类敏感字段在落库前就被替换成 ***，防止密码、令牌通过日志泄露。
+
+\noindent\textbf{四、trace\_id：请求追踪}
+
+\texttt{trace\_id} 和 HTTP 响应头里的 traceId 一一对应，是请求刚进入系统时分配的 32 位唯一编号，一次请求一个号。这次请求经过的每道环节，打印的日志都带着同一个 \texttt{trace\_id}；用户报障时报出编号，技术人员凭它一搜，就能把这次请求散落在各处的日志按顺序全部捞出来，定位到具体卡在哪一步，而不用靠时间、账号在海量日志里人工翻找。
+
+\noindent\textbf{五、三条索引，各对应一个筛选场景}
+
+\texttt{idx\_log\_time(create\_time)} 覆盖按时间范围查询，是日志页的默认视图；\texttt{idx\_log\_user(user\_id)} 覆盖按操作人筛选；\texttt{idx\_log\_type(log\_type, create\_time)} 覆盖按类型加时间组合查询，比如筛选所有 \texttt{DENIED} 记录。
+
+\noindent\textbf{设计考点（问答）}
+
+\noindent\textbf{问：}\texttt{user\_id} 为什么不建外键，还要冗余存 \texttt{username}？
+
+\noindent\textbf{答：}日志的生命周期必须长于用户账号，外键会在删人时级联清除日志；冗余 \texttt{username} 保证账号删除后，仍能通过名字追溯到操作人。
+
+\noindent\textbf{问：}\texttt{result} 为什么要分 \texttt{SUCCESS}、\texttt{DENIED}、\texttt{FAIL} 三态？
+
+\noindent\textbf{答：}三态把正常成功、越权拦截、业务异常区分开，审计时可以直接按 \texttt{DENIED} 集中查看所有越权尝试，而不必人工逐条判断。
+
+\noindent\textbf{问：}\texttt{params} 为什么要脱敏后才落库？
+
+\noindent\textbf{答：}请求参数里可能带有 \texttt{password}、\texttt{token} 等敏感信息，落库前用 \texttt{MaskUtil} 替换成 ***，避免敏感数据通过日志泄露。
 
 
 \subsection*{\texorpdfstring{\textbf{4.7 两张关联表}}{4.7 两张关联表}}\label{ux4e24ux5f20ux5173ux8054ux8868}
