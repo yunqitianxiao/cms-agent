@@ -251,25 +251,6 @@ guide:use & 使用站内引导 & ✓ & ✓ & ✓ & ✓ \\
 
 第七个场景是日志记录，由系统自动完成。每次写操作，系统记录操作人、动作、对象、脱敏后的参数、结果和耗时。输出是一条可查询的操作流水。价值在于出了问题能追溯到谁在什么时间做了什么，越权尝试也有据可查，既缩短排查时间，也形成威慑。
 
-\subsection*{\texorpdfstring{\textbf{2.6 业务规则与状态模型}}{2.6 业务规则与状态模型}}\label{ux4e1aux52a1ux89c4ux5219ux4e0eux72b6ux6001ux6a21ux578b}
-\addcontentsline{toc}{subsection}{2.6 业务规则与状态模型}
-
-文章共五个状态，七条合法迁移。
-
-作者提交审核，从 DRAFT 迁到 PENDING。作者撤回，从 PENDING 回到 DRAFT。审核通过，从 PENDING 迁到 PUBLISHED。驳回时意见必填，从 PENDING 迁到 REJECTED。按意见修改后再写，从 REJECTED 回到 DRAFT。下架时原因必填，从 PUBLISHED 迁到 OFFLINE。重新提交审核，从 OFFLINE 回到 PENDING。
-
-表外迁移一律返回 409/40901。删除是状态机之外的独立规则：只有 DRAFT 与 REJECTED 可删。
-
-\subsection*{\texorpdfstring{\textbf{2.7 非功能需求}}{2.7 非功能需求}}\label{ux975eux529fux80fdux9700ux6c42}
-\addcontentsline{toc}{subsection}{2.7 非功能需求}
-
-安全上，密码用 BCrypt 不可逆存储，通过排序白名单加 \#\{\} 预编译防 SQL 注入，双层权限防越权，敏感信息检测加日志打码防外泄。性能上，列表页不得出现 N+1，用三表 join 解决，分页插件限制单页最多 200 条。可维护性上，分层清晰、职责单一，四个业务模块配合 ModuleBoundaryTest 检查边界。可运维性上，异常有统一出口，行为可追溯，对应 GlobalExceptionHandler、LogAspect 与 traceId。兼容性上，中文与 emoji 不截断，采用 utf8mb4。
-
-\subsection*{\texorpdfstring{\textbf{2.8 需求跟踪矩阵（节选）}}{2.8 需求跟踪矩阵（节选）}}\label{ux9700ux6c42ux8ddfux8e2aux77e9ux9635ux8282ux9009}
-\addcontentsline{toc}{subsection}{2.8 需求跟踪矩阵（节选）}
-
-注册、登录、退出由 AuthService 实现，接口在 /api/auth 下，实机联调验证。角色分配由 UserService 实现，接口是 PUT /api/users/\{id\}/roles，实机联调验证。接口级权限由 PermissionAspect 实现，覆盖所有受控接口，越权返回 40300。数据级权限由 checkOwner 实现，用于文章改删，越权返回 40301。三级分类由 CategoryService 实现，接口在 /api/categories 下，四级分类被拒返回 40001。文章状态机由 ArticleStateMachine 实现，接口在 /api/articles/\{id\} 下，单测 4 个用例。多维检索由 ArticleMapper.selectPageVO 实现，接口是 GET /api/articles，用 SQL 条数核对。操作日志由 LogAspect 实现，日志页可见 DENIED 记录。敏感信息预检由 SensitiveInfoDetector 实现，接口是 POST /api/articles/sensitive-check，单测 9 个用例。文章越权防护由 ArticleProtectionTest 覆盖，单测 5 个用例。
-
 \section*{\texorpdfstring{\textbf{三、技术选型与依据}}{三、技术选型与依据}}\label{ux4e09ux6280ux672fux9009ux578bux4e0eux4f9dux636e}
 \addcontentsline{toc}{section}{三、技术选型与依据}
 
