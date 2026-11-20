@@ -2445,16 +2445,223 @@ docs/ai-log.md 按天记录当天做了什么、AI 给了什么建议、人工�
 \subsection*{\texorpdfstring{\textbf{11.5 AI 优化总结}}{11.5 AI 优化总结}}\label{ai-ux4f18ux5316ux603bux7ed3}
 \addcontentsline{toc}{subsection}{11.5 AI 优化总结}
 
-AI 在本项目中的正确定位是放大器而非替代品，具体体现在三类用法。
+本节把整个开发周期里的 AI 交互与代码修改痕迹完整列出，用以说明本项目的真实分工。AI 自始至终只承担三类它擅长的事：\textbf{基础配置、通用片段、接口模板}，例如 pom 与 yml 骨架、重复度高的 CRUD、接口文档框架；这些产出拿到手后都要逐行人工校验，确认每条在什么输入下会错。而\textbf{状态机、权限、事务、并发这类复杂逻辑，以及排错、性能优化、结构重构，全部由本人自主设计与验证}，AI 最多参与讨论、提供候选方案。下面先给出二十五条交互与修改记录，再挑十条以“修改前/后红绿对比”或“问答记录”的形式还原现场。
 
-第一类是生成再到校验。脚手架与模板由 AI 生成，但每一条都要能回答它在什么输入下会错。校验的成本远低于从零手写的成本，这正是收益所在。
+\lstdefinestyle{fixBefore}{
+  backgroundcolor=\color{red!7},
+  rulecolor=\color{red!45},
+  aboveskip=6pt,
+  belowskip=4pt
+}
+\lstdefinestyle{fixAfter}{
+  backgroundcolor=\color{green!8},
+  rulecolor=\color{green!45},
+  aboveskip=6pt,
+  belowskip=10pt
+}
 
-第二类是排错再到归因。AI 擅长根据报错给出候选原因，但哪个原因成立必须用可执行判据验证，比如注入、日志、SQL 条数，不接受应该就是这个原因。
+\noindent\textbf{一、二十五条 AI 交互与人工修改记录}
 
-第三类是重构再到收敛。AI 建议的抽象，例如把状态判断抽成表，先做小范围验证，确认判据能覆盖全部边再推广。
+\noindent\textbf{（一）AI 生成、人工逐行校验（基础配置 / 通用片段 / 接口模板，10 条）}
 
-反过来，有三类事情不适合交给 AI 直接产出，涉及并发与事务的正确性判断、安全边界的取舍、以及任何看起来对但没有判据的结论。本项目中这三类问题全部由人工设计与验证，AI 只参与讨论与提供候选方案。
+\noindent\textbf{1.} pom.xml 与目录脚手架：AI 生成依赖与分层目录，人工核对 Spring、MyBatis-Plus、Servlet 版本，排除潜在冲突，删掉用不上的 starter。
 
+\noindent\textbf{2.} schema.sql 建表骨架：AI 出六表两关联的建表语句，人工逐字段核对类型、外键与索引，自行补上 version、deleted 两列。
+
+\noindent\textbf{3.} data.sql 演示数据：AI 造 5 个账号、10 个分类、20 篇文章，人工核对五种状态都被覆盖、外键关系闭合，保证能演完状态机。
+
+\noindent\textbf{4.} application.yml 配置模板：AI 给通用数据源与 Web 配置，人工改写连接参数、端口与连接池，删除本机用不到的配置项。
+
+\noindent\textbf{5.} 通用 CRUD 片段：AI 生成重复度高的 mapper 与 service 代码，人工逐行读，凡涉及状态、权限、事务的段落全部重写。
+
+\noindent\textbf{6.} Controller 接口骨架：AI 出 REST 接口与统一返回结构，人工补 @RequirePermission 注解和参数校验，确认每个入口都受控。
+
+\noindent\textbf{7.} ApiFox / OpenAPI 文档骨架：AI 生成文档框架，人工写双向差集脚本对账，接口数、schema 与代码完全一致，不漏不编。
+
+\noindent\textbf{8.} Thymeleaf 页面骨架：AI 出 11 个页面结构，人工重做交互与启动逻辑，修正模板里想当然的写法。
+
+\noindent\textbf{9.} Graphviz 图源码：AI 生成流程图、状态机的 dot 源码，人工核对与真实实现一致后才渲染，不让图与代码对不上。
+
+\noindent\textbf{10.} 报错解释：AI 根据异常信息给出候选原因，人工用日志、注入、SQL 条数等可执行判据验证，不接受“应该就是这个原因”。
+
+\noindent\textbf{（二）人工主导：复杂逻辑 / 排错 / 优化 / 重构（15 条）}
+
+\noindent\textbf{11.} 两字别名误路由：单测先变红，人工把包含匹配限制为长度 $\geq 3$ 的键，两字词只走 bigram，纠正“写新文章”被路由到列表。
+
+\noindent\textbf{12.} 日志写库方式：人工否定异步方案，定同步加 REQUIRES\_NEW，避免线程池满时恰好丢掉出事那一刻的日志。
+
+\noindent\textbf{13.} C2 校验粒度：人工定为类级而非方法级，防止 /api/articles/\{id\} 这类纯数据接口被当成页面卡片。
+
+\noindent\textbf{14.} resubmit 有边无出口：人工发现下架稿无法回来，补全 service 方法与接口，让状态图上的边真正能走。
+
+\noindent\textbf{15.} 管理员自锁防护：人工加 role:manage 强制校验，管理员取消该权限会被拒并返回 409，防止系统永久锁死。
+
+\noindent\textbf{16.} 审核发布二次校验：人工在 approve 时再查一次分类启用，堵住稿件排队期间分类被停用仍发布的漏洞。
+
+\noindent\textbf{17.} 排序补唯一键：人工在白名单末尾追加 a.id desc 作为 tiebreaker，消除同秒数据翻页重复、漏行。
+
+\noindent\textbf{18.} 分类不支持换上级：人工显式划界，后端忽略 parentId，避免换父节点导致整棵子树 level 失效和环引用。
+
+\noindent\textbf{19.} package 错误定位：人工查出一个包名声明错误伪装成 413 个编译错误，修正 CmsCategory 的 package 后工程恢复。
+
+\noindent\textbf{20.} 八页面停在加载中：人工排查顶层 await 导致的暂时性死区，改为 then 启动并加 catch，数据页恢复加载。
+
+\noindent\textbf{21.} 批量失败误报成功：人工发现 failed 空数组在 JS 里是真值，改用 length 判断并逐条渲染失败原因。
+
+\noindent\textbf{22.} 停用父分类无检查：人工补 checkCanDisable，让 update 与 updateStatus 两条停用路径都经过子分类检查。
+
+\noindent\textbf{23.} RequestFacade 漏判：人工把类名前缀判断改为 instanceof，让容器注入的请求对象被正确跳过、不进日志。
+
+\noindent\textbf{24.} 删除用户产生孤儿：人工补删除前统计名下稿件，大于 0 抛 40903，避免逻辑删除后文章作者名空白。
+
+\noindent\textbf{25.} 密钥存储方案：人工在落库、localStorage、Session 三者间取舍，选 HttpSession 内存存储，接口只回 keyHint 不回原文。
+
+\noindent\textbf{二、十条现场还原：红绿对比与问答记录}
+
+\noindent\textbf{记录 1（红绿对比）：两字别名压过真实意图。} 人工审查发现“文章”这类两字别名几乎每句都有，却被加了 0.8 的包含高分，导致意图路由错误。
+
+修改前，见别名就加分：
+
+\begin{lstlisting}[style=fixBefore]
+if (sentence.contains(alias)) {
+    score += 0.8; // 两字别名几乎每句都命中
+}
+// “我要写新文章”被路由到「文章列表」
+\end{lstlisting}
+
+修改后，短词不再给强信号：
+
+\begin{lstlisting}[style=fixAfter]
+if (key.length() >= 3 && sentence.contains(key)) {
+    score += STRONG;
+}
+// 两字词只走 bigram，真实意图不再被压过
+\end{lstlisting}
+
+\noindent\textbf{记录 2（红绿对比）：模块顶层 await 造成暂时性死区。} 人工核对时发现八个数据页接口正常却停在“加载中”，根因是 await 挂起期间后面的常量尚未初始化。
+
+修改前，顶层 await 让后续声明不可访问：
+
+\begin{lstlisting}[style=fixBefore]
+await bootReady;
+const COLS = [...];
+main(); // 读 state 时抛 ReferenceError（TDZ）
+\end{lstlisting}
+
+修改后，用 then 把启动排到求值结束之后：
+
+\begin{lstlisting}[style=fixAfter]
+bootReady.then(() => (me ? main() : null))
+    .catch(e => console.error('初始化失败', e));
+\end{lstlisting}
+
+\noindent\textbf{记录 3（红绿对比）：把失败数组误当成布尔判断。} 人工审查批量弹窗时发现失败项被报成成功，问题出在对数组直接取反，空数组在 JS 里仍是真值。
+
+修改前，分支永远进不去：
+
+\begin{lstlisting}[style=fixBefore]
+if (!r.failed) { showSuccess(); }
+// failed 是数组，空数组也是真值
+r.reasons.map(...); // 对象没有 map，直接抛错
+\end{lstlisting}
+
+修改后，按长度判断并渲染原因：
+
+\begin{lstlisting}[style=fixAfter]
+if (r.failed.length > 0) {
+    r.failed.forEach(id =>
+        renderReason(id, r.reasons[id]));
+}
+\end{lstlisting}
+
+\noindent\textbf{记录 4（红绿对比）：停用父分类漏掉子分类检查。} 人工在实机联调时发现父分类停用后子分类仍启用，形成“父不可见、子仍可选”的矛盾。
+
+修改前，停用路径不做引用检查：
+
+\begin{lstlisting}[style=fixBefore]
+public void updateStatus(Long id, Integer status) {
+    category.setStatus(status);
+    mapper.updateById(category); // 父停子启用
+}
+\end{lstlisting}
+
+修改后，两条停用路径都过统一检查：
+
+\begin{lstlisting}[style=fixAfter]
+private void checkCanDisable(Long id, Integer status) {
+    if (status != null && status != 1
+            && mapper.countEnabledChildren(id) > 0) {
+        throw new BizException(ResultCode.IN_USE,
+                "请先停用子分类");
+    }
+}
+\end{lstlisting}
+
+\noindent\textbf{记录 5（红绿对比）：卡片网格挂错节点导致宽度异常。} 人工复查时类名和规则都在，卡片却只有 106px，最终靠打印元素几何才发现网格被挂到了 flex 容器上。
+
+修改前，网格与气泡被横向排开：
+
+\begin{lstlisting}[style=fixBefore]
+msgEl.classList.add('has-cards');
+renderCards(msgEl, cards); // flex 容器把卡片挤成细条
+\end{lstlisting}
+
+修改后，挂进气泡内部并用几何验证：
+
+\begin{lstlisting}[style=fixAfter]
+renderCards(bubbleEl, cards);
+// 用 getBoundingClientRect 确认宽度恢复
+\end{lstlisting}
+
+\noindent\textbf{记录 6（红绿对比）：非唯一排序导致翻页不稳定。} 人工发现只按 create\_time 排序时同秒数据顺序会漂移，翻页出现重复和漏行。
+
+修改前，缺少唯一键：
+
+\begin{lstlisting}[style=fixBefore,language=SQL]
+ORDER BY a.create_time DESC
+-- 同秒行顺序不确定，翻页重复/漏行
+\end{lstlisting}
+
+修改后，白名单末尾追加唯一键：
+
+\begin{lstlisting}[style=fixAfter,language=SQL]
+ORDER BY a.create_time DESC, a.id DESC
+-- 追加 id 唯一键，分页顺序稳定
+\end{lstlisting}
+
+\noindent\textbf{记录 7（问答记录）：下架文章为什么回不来。}
+
+\noindent\textbf{我问：}已下架的文章找不到重新提交的入口，是前端漏了按钮吗？
+
+\noindent\textbf{AI 反应：}状态枚举里存在 RESUBMIT，可能是前端没有放对应按钮。
+
+\noindent\textbf{我的判断：}逐层核对后发现不止前端，Service 里根本没有 resubmit 方法、也没有对应接口，属于“状态图画了边、代码走不通”。人工先补 ArticleService.resubmit 与 POST /api/articles/\{id\}/resubmit，再让前端出按钮，最后用一篇下架稿实测通过。
+
+\noindent\textbf{记录 8（问答记录）：用户自填的 API Key 该存哪。}
+
+\noindent\textbf{我问：}让用户在界面填自己的 API Key，存哪里才安全？
+
+\noindent\textbf{AI 反应：}常见做法是在用户表加字段落库，或者保存在浏览器 localStorage。
+
+\noindent\textbf{我的判断：}本项目是源码交付，密钥落库会进 SQL 脚本和备份，localStorage 则一次 XSS 就被读走。人工否定这两个方案，选择 HttpSession 内存存储，随退出登录失效，接口只返回 keyHint、VO 里根本没有 key 字段。
+
+\noindent\textbf{记录 9（问答记录）：启动报端口占用的真实归因。}
+
+\noindent\textbf{我问：}mvn 启动报 BindException，8080 被占用，是不是本项目上次没停干净？
+
+\noindent\textbf{AI 反应：}可能是残留进程占用，建议找到并结束占用 8080 的进程。
+
+\noindent\textbf{我的判断：}先访问 8080，看到的是系统 Tomcat 默认页，确认占端口的是系统服务而非本项目。人工没有去动别人的服务，而是把本项目改到 8090 并在 README、api 文档等四处同步，再用真实请求验证。
+
+\noindent\textbf{记录 10（问答记录）：要不要引入整套 Spring Security。}
+
+\noindent\textbf{我问：}权限这块是否直接引入整套 Spring Security 更省事？
+
+\noindent\textbf{AI 反应：}可以引入，安全过滤器链功能完整，权限控制更标准。
+
+\noindent\textbf{我的判断：}现有自定义拦截器加切面已经覆盖会话与接口、数据两层权限，引入整套框架会带来额外配置成本，还可能与现有拦截器顺序冲突。人工决定不引入，保留轻量方案，把精力集中到 checkOwner 这类真正防住越权的数据校验上，并用单测验证。
+
+综上，AI 在本项目里是\textbf{放大器而不是替代品}：它把重复劳动的时间省下来，让本人能把精力投到需要判断“这段代码在什么情况下会错”的地方。所有涉及正确性的结论都有可执行判据，没有一条是因为“AI 这么说”就被接受。
 \section*{\texorpdfstring{\textbf{十二、测试与验证}}{十二、测试与验证}}\label{ux5341ux4e00ux6d4bux8bd5ux4e0eux9a8cux8bc1}
 \addcontentsline{toc}{section}{十二、测试与验证}
 
