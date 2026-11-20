@@ -1355,9 +1355,9 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 
 \includegraphics[width=\linewidth]{media/image52.png}
 
-ApiFox 项目总览：九个模块、49 个接口的接口主页
+初次导入时的 ApiFox 项目总览：九个模块、49 个接口的接口主页
 
-\textbf{接口模块全景。}导入后的接口按业务域组织为九个模块、共 49 个接口。左侧接口树以方法颜色区分请求类型，GET 为绿色、POST 为橙色、PUT 为蓝色、DELETE 为红色，每个接口后标注用例数。下面三张图自上而下给出接口树的三个连续区段。
+\textbf{接口模块全景。}初次导入后的接口按业务域组织为九个模块、共 49 个接口，这一版文章模块还是 13 个。左侧接口树以方法颜色区分请求类型，GET 为绿色、POST 为橙色、PUT 为蓝色、DELETE 为红色，每个接口后标注用例数。下面三张图自上而下给出接口树的三个连续区段。
 
 \includegraphics[width=\linewidth]{media/image62.png}
 
@@ -1369,7 +1369,9 @@ ApiFox 项目总览：九个模块、49 个接口的接口主页
 
 \includegraphics[width=\linewidth]{media/image64.png}
 
-接口树底部是角色、日志、工作台、站内引导、前台五个模块，以及独立的数据模型、组件库与快捷请求入口。九个模块的接口数相加为 4+13+6+7+6+1+1+8+3=49，与 ApiFox 总览完全一致。
+接口树底部是角色、日志、工作台、站内引导、前台五个模块，以及独立的数据模型、组件库与快捷请求入口。这一版九个模块的接口数相加为 4+13+6+7+6+1+1+8+3=49，与截图里的 ApiFox 总览一致。
+
+\textbf{从 49 到 50 的增补。}上面几张截图对应初次导入的版本。联调时注意到，文章在真正落库之前缺少一道独立的敏感信息预检，于是在文章模块补入 POST /api/articles/sensitive-check：它只回传是否命中敏感词、不保存原文，权限与新建、修改共用，满足其一即可进入。接口加入后 OpenAPI 同步更新，文章模块由 13 个变为 14 个，全部接口随之成为 50 个。下一小节给出的，正是与当前代码对账一致的 50 个完整清单，截图与文字之间的一个接口之差，就来自这次增补。
 
 \textbf{环境与前置 URL。}ApiFox 按环境管理前置 URL，规则是：当请求路径不是以 http:// 或 https:// 起始时，自动拼接当前环境的前置 URL，否则忽略前置 URL、直接使用完整地址。内置环境中测试环境指向 8090 端口、本地 Mock 指向 4523 端口，并没有本系统实际运行的 8081。
 
@@ -1422,6 +1424,144 @@ ApiFox 项目总览：九个模块、49 个接口的接口主页
 \includegraphics[width=\linewidth]{media/image74.png}
 
 文章模型区段（二）：核心实体字段（下）
+
+
+\subsubsection*{\texorpdfstring{\textbf{8.4.4 接口清单}}{8.4.4 接口清单}}\label{sec:api-list}
+\addcontentsline{toc}{subsubsection}{8.4.4 接口清单}
+
+下面以文字形式给出全部接口，与 OpenAPI 文件及 Controller 代码双向对账，共九个模块、五十个接口，没有文档里有而代码里没有的路径，也没有相反情况。方法名按 ApiFox 习惯配色，GET 为绿色、POST 为橙色、PUT 为蓝色、DELETE 为红色；权限列标注进入该接口所需的权限码，免登录接口写“无”。
+
+\newcommand{\mget}{\textcolor{green!45!black}{\textbf{GET}}}
+\newcommand{\mpost}{\textcolor{orange!85!black}{\textbf{POST}}}
+\newcommand{\mput}{\textcolor{blue!60!black}{\textbf{PUT}}}
+\newcommand{\mdel}{\textcolor{red!60!black}{\textbf{DELETE}}}
+
+\begin{longtable}{@{}p{1.75cm}p{5.05cm}p{3.9cm}p{4.0cm}@{}}
+\toprule
+\textbf{方法} & \textbf{路径} & \textbf{所需权限} & \textbf{功能说明} \\
+\midrule
+\endfirsthead
+\multicolumn{4}{@{}l}{\small（续表）}\\
+\toprule
+\textbf{方法} & \textbf{路径} & \textbf{所需权限} & \textbf{功能说明} \\
+\midrule
+\endhead
+\multicolumn{4}{@{}l}{\textbf{（1）认证 \path|/api/auth|（4 个）}}\\
+\mpost & \path|/api/auth/login| & 无 & 登录，成功下发会话 Cookie \\
+\mpost & \path|/api/auth/logout| & 登录 & 退出，作废当前会话 \\
+\mpost & \path|/api/auth/register| & 无 & 注册，默认 AUTHOR 角色 \\
+\mget & \path|/api/auth/me| & 登录 & 当前用户、角色与权限 \\
+\multicolumn{4}{@{}l}{\textbf{（2）文章 \path|/api/articles|（14 个）}}\\
+\mget & \path|/api/articles| & \path|article:read| & 后台分页查询 \\
+\mget & \path|/api/articles/{id}| & \path|article:read| & 文章详情 \\
+\mpost & \path|/api/articles| & \path|article:create| & 新建，保存为草稿 \\
+\mput & \path|/api/articles/{id}| & \path|article:update:own/any| & 修改草稿或被驳回稿 \\
+\mpost & \path|/api/articles/sensitive-check| & \path|article:create/update| & 敏感信息预检，不存原文 \\
+\mpost & \path|/api/articles/{id}/submit| & \path|article:submit/any| & 提交审核 \\
+\mpost & \path|/api/articles/{id}/withdraw| & \path|article:submit/any| & 待审核撤回为草稿 \\
+\mpost & \path|/api/articles/{id}/resubmit| & \path|article:submit/any| & 已下架重新提交 \\
+\mpost & \path|/api/articles/{id}/approve| & \path|article:audit| & 审核通过 \\
+\mpost & \path|/api/articles/{id}/reject| & \path|article:audit| & 驳回，意见必填 \\
+\mpost & \path|/api/articles/{id}/offline| & \path|article:publish| & 下架，原因必填 \\
+\mpost & \path|/api/articles/batch/approve| & \path|article:publish| & 批量审核通过 \\
+\mpost & \path|/api/articles/batch/offline| & \path|article:publish| & 批量下架 \\
+\mdel & \path|/api/articles/{id}| & \path|article:delete:own/any| & 删除，仅草稿或被驳回 \\
+\multicolumn{4}{@{}l}{\textbf{（3）分类 \path|/api/categories|（6 个）}}\\
+\mget & \path|/api/categories/tree| & \path|category:read| & 树形结构，onlyEnabled 控制 \\
+\mget & \path|/api/categories| & \path|category:read| & 平铺列表 \\
+\mpost & \path|/api/categories| & \path|category:write| & 新增分类 \\
+\mput & \path|/api/categories/{id}| & \path|category:write| & 修改，忽略 parentId \\
+\mput & \path|/api/categories/{id}/status| & \path|category:write| & 启用或停用 \\
+\mdel & \path|/api/categories/{id}| & \path|category:write| & 删除分类 \\
+\multicolumn{4}{@{}l}{\textbf{（4）用户 \path|/api/users|（7 个）}}\\
+\mget & \path|/api/users| & \path|user:manage| & 分页查询 \\
+\mget & \path|/api/users/{id}| & \path|user:manage| & 用户详情 \\
+\mpost & \path|/api/users| & \path|user:manage| & 新增用户 \\
+\mput & \path|/api/users/{id}| & \path|user:manage| & 修改资料，用户名不可改 \\
+\mput & \path|/api/users/{id}/status| & \path|user:manage| & 启用或停用 \\
+\mput & \path|/api/users/{id}/roles| & \path|user:manage| & 分配角色 \\
+\mdel & \path|/api/users/{id}| & \path|user:manage| & 逻辑删除 \\
+\multicolumn{4}{@{}l}{\textbf{（5）角色 \path|/api/roles|（6 个）}}\\
+\mget & \path|/api/roles| & \path|role:manage/user:manage| & 角色列表 \\
+\mget & \path|/api/roles/permissions| & \path|role:manage/user:manage| & 全部权限点 \\
+\mpost & \path|/api/roles| & \path|role:manage| & 新增角色 \\
+\mput & \path|/api/roles/{id}| & \path|role:manage| & 修改角色 \\
+\mput & \path|/api/roles/{id}/permissions| & \path|role:manage| & 全量覆盖权限 \\
+\mdel & \path|/api/roles/{id}| & \path|role:manage| & 删除角色 \\
+\multicolumn{4}{@{}l}{\textbf{（6）操作日志 \path|/api/logs|（1 个）}}\\
+\mget & \path|/api/logs| & \path|log:read| & 分页查询操作日志 \\
+\multicolumn{4}{@{}l}{\textbf{（7）工作台 \path|/api/dashboard|（1 个）}}\\
+\mget & \path|/api/dashboard/stats| & 登录 & 工作台统计数据 \\
+\multicolumn{4}{@{}l}{\textbf{（8）站内引导 \path|/api/guide|（8 个）}}\\
+\mget & \path|/api/guide/pages| & \path|guide:use| & 全部页面卡片 \\
+\mpost & \path|/api/guide/chat| & \path|guide:use| & 提问引导 \\
+\mget & \path|/api/guide/suggestions| & \path|guide:use| & 快捷问题 \\
+\mget & \path|/api/guide/llm| & \path|guide:use| & 模型通道状态 \\
+\mput & \path|/api/guide/llm| & \path|guide:use| & 填写模型密钥（仅会话） \\
+\mdel & \path|/api/guide/llm| & \path|guide:use| & 清除会话密钥 \\
+\mpost & \path|/api/guide/llm/test| & \path|guide:use| & 测试模型连通性 \\
+\mget & \path|/api/guide/selfcheck| & \path|log:read| & 站点地图自检 \\
+\multicolumn{4}{@{}l}{\textbf{（9）前台 \path|/api/portal|（3 个，免登录）}}\\
+\mget & \path|/api/portal/articles| & 无 & 已发布文章分页 \\
+\mget & \path|/api/portal/articles/{id}| & 无 & 已发布详情，阅读量加一 \\
+\mget & \path|/api/portal/categories| & 无 & 启用分类树 \\
+\bottomrule
+\end{longtable}
+
+分页是所有列表接口的通用约定，请求参数 pageNum 默认 1、最小 1，pageSize 默认 10、最大 200；响应统一给出 total、pageNum、pageSize、pages 与 records。文章分页查询另外支持下表所列参数，其中 sort 只能使用白名单逻辑名，非法字段返回 40000。
+
+\begin{longtable}{@{}p{3.0cm}p{2.2cm}p{9.8cm}@{}}
+\toprule
+\textbf{参数} & \textbf{类型} & \textbf{说明} \\
+\midrule
+\endfirsthead
+\multicolumn{3}{@{}l}{\small（续表）}\\
+\toprule
+\textbf{参数} & \textbf{类型} & \textbf{说明} \\
+\midrule
+\endhead
+keyword & string & 标题或摘要包含该关键词 \\
+status & string & 草稿/待审核/已发布/被驳回/已下架 \\
+categoryId & long & 分类，自动包含其全部子分类 \\
+authorId & long & 按作者筛选 \\
+mine & boolean & 为真时只看当前用户的文章 \\
+sort & string & 形如 createTime,desc;title,asc，最多 3 个 \\
+\bottomrule
+\end{longtable}
+
+下面给出两个典型接口的报文。登录请求提交用户名与密码，成功后 data 回显用户身份，并通过 Set-Cookie 建立会话；用户名不存在或密码错误统一返回 40101，避免暴露账号是否存在。
+
+\begin{lstlisting}
+// 请求
+POST /api/auth/login
+{ "username": "admin", "password": "123456" }
+
+// 成功响应
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "id": 1,
+    "username": "admin",
+    "nickname": "系统管理员",
+    "roleCodes": ["ADMIN"]
+  }
+}
+\end{lstlisting}
+
+新建文章请求携带标题、摘要、正文与分类，服务端先做敏感信息检查再落库，初始状态为草稿；version 用于后续编辑的乐观锁，冲突时返回 40900。
+
+\begin{lstlisting}
+POST /api/articles
+{
+  "title": "MyBatis-Plus 分页插件踩坑记录",
+  "summary": "总条数为什么一直是 0",
+  "content": "正文内容……",
+  "categoryId": 4,
+  "version": 0
+}
+// 成功响应：{ "code": 0, "data": 新文章 id }
+\end{lstlisting}
 
 \subsection*{\texorpdfstring{\textbf{8.5 前端视觉体系与交互设计}}{8.5 前端视觉体系与交互设计}}\label{sec:frontend-visual}
 \addcontentsline{toc}{subsection}{8.5 前端视觉体系与交互设计}
