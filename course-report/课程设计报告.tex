@@ -485,7 +485,50 @@ description & VARCHAR(200) & DEFAULT NULL & 说明 \\
 sort & INT & NOT NULL DEFAULT 100 & 组内排序 \\
 \end{longtable}
 
-权限点表由建表脚本的数据初始化，运行时只读，不进行增删改。这样设计是为了让启动期校验可以依赖一个稳定的权限码集合——站点地图在启动时检查每张卡片对应的权限码是否真实存在，如果权限点可以随时增删，这层校验就无法依赖了。perm\_group 把 15 个权限点（如 article:create、user:manage 等）归入五个分组，在前端角色管理页按组展示，管理员勾选授权一目了然。
+权限点表的关键字段分成两组：
+
+\begin{itemize}
+\item \textbf{标识组：}\texttt{id}（主键）、\texttt{perm\_code}（权限码，唯一索引 UK）
+\item \textbf{展示组：}\texttt{perm\_name}（权限码对应的中文名字，给人看的，比如“新建文章”）、\texttt{perm\_group}（标记所属分组，决定它在角色管理页出现在哪个区块）、\texttt{description}（详细解释，允许为空）、\texttt{sort}（组内排序，数字小的排前面）
+\end{itemize}
+
+\noindent\textbf{一、权限码的命名格式}
+
+\texttt{perm\_code} 采用“模块:动作”的格式，涉及自己或他人数据时再追加限定，例如 \texttt{article:create}（新建文章）、\texttt{article:audit}（审核文章）、\texttt{article:update:own}（修改自己的文章）。权限判断时，系统拿当前用户拥有的权限码，和接口注解上要求的权限码做匹配，匹配上才放行。
+
+\noindent\textbf{二、15 个权限点、5 个分组}
+
+全表共 15 个权限点，按 \texttt{perm\_group} 分成五组，角色管理页就按这五个区块展示：
+
+\begin{itemize}
+\item \textbf{内容组（7 个）：}\texttt{article:read} 查看文章、\texttt{article:create} 新建文章、\texttt{article:update:own} 修改自己的文章、\texttt{article:update:any} 修改任意文章、\texttt{article:delete:own} 删除自己的文章、\texttt{article:delete:any} 删除任意文章、\texttt{article:submit} 提交审核
+\item \textbf{审核组（2 个）：}\texttt{article:audit} 审核文章、\texttt{article:publish} 发布与下架
+\item \textbf{分类组（2 个）：}\texttt{category:read} 查看分类、\texttt{category:write} 维护分类
+\item \textbf{账号与权限组（2 个）：}\texttt{user:manage} 用户管理、\texttt{role:manage} 角色管理
+\item \textbf{系统组（2 个）：}\texttt{log:read} 查看操作日志、\texttt{guide:use} 使用站内引导
+\end{itemize}
+
+\noindent\textbf{三、运行时只读}
+
+这 15 条数据是“出厂自带”的，写在建表脚本里，数据库第一次搭建时自动执行、一次性写入，不是通过系统界面手动添加的。系统运行期间不提供任何新增、修改、删除的入口，数据永远是出厂时那 15 条。
+
+为什么要锁死？系统里每个接口都标注了访问它必须持有哪个权限码，比如审核接口要求 \texttt{article:audit}。系统每次启动会做一次“体检”，把所有接口要求的权限码收集起来，逐个到这张表里查，确认码真实存在；这能抓住程序员写错的情况，比如注解误写成 \texttt{article:auditt}，启动时立刻报错，而不是等上线后这个接口谁都进不去。这层体检能成立的前提是清单固定不变，如果运行时有人能删改权限点，启动时还对得上的代码和清单，运行中途就会错位，体检也就失去意义。
+
+那为什么没有 \texttt{deleted} 和审计字段？这两个字段分别是为“删除”和“记录谁改了数据”准备的，本表既不让删、也不让改，没有任何删除或修改动作发生，自然没有东西需要记录，加了纯属多余。
+
+\noindent\textbf{设计考点（问答）}
+
+\noindent\textbf{问：}权限点表为什么运行时只读，不允许增删改？
+
+\noindent\textbf{答：}系统启动时要逐一核对接口要求的权限码在表中是否真实存在，只有清单固定，代码和清单才能永远对得上；运行时若能增删，这层核对就无法保证系统持续可靠。
+
+\noindent\textbf{问：}\texttt{perm\_group} 分组有什么作用？
+
+\noindent\textbf{答：}15 个权限点归入 5 个分组，角色管理页按区块展示，管理员授权时结构清晰，减少漏选、错选。
+
+\noindent\textbf{问：}这张表为什么没有 \texttt{deleted} 和审计字段？
+
+\noindent\textbf{答：}它运行时只读、数据不允许变更，不存在删除和修改场景，没有需要记录的动作，所以不需要这两类字段。
 
 
 \subsection*{\texorpdfstring{\textbf{4.4 cms\_category 分类表}}{4.4 cms\_category 分类表}}\label{cms_category-ux5206ux7c7bux8868}
