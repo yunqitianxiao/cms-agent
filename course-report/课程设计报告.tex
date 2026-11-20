@@ -687,9 +687,47 @@ idx\_article\_title(title) & 标题前缀匹配 \\
 idx\_article\_publish(publish\_time) & 前台按发布时间倒序 \\
 \end{longtable}
 
-文章表是系统的核心业务表，承载从草稿到发布的完整生命周期。category\_id 和 author\_id 都建了外键，因为文章不能脱离分类和作者独立存在——这两条外键既是约束也是文档，读建表语句就知道文章必须挂分类、必须由某人撰写。auditor\_id 没有建外键，因为审核员可能在之后被删除，而文章需要保留谁审过的记录，弱引用比外键更适合这种松散关系。status 字段直接用 VARCHAR 存 DRAFT、PENDING 等枚举字面值，而不是建一张状态字典表。文章的五种状态由 ArticleStateMachine 的静态迁移表定义，新增状态需要改代码中的枚举和迁移矩阵，不会出现字典表里多了一个没有代码支持的状态。version 字段配合 @Version 注解实现乐观锁，两个用户同时编辑同一篇草稿时，后提交者会收到版本冲突的错误码 40900。
+\texttt{cms\_article} 是系统的核心业务表，承载一篇文章从草稿、审核到发布、下架的完整生命周期，其他表基本都围绕它服务。
 
-文章表建立了四条索引。idx\_article\_query(status, category\_id, create\_time) 是列表页的核心索引，覆盖按状态和分类筛选再按创建时间倒序排列的查询。idx\_article\_author(author\_id, status) 覆盖"我的稿件"和按作者统计。idx\_article\_title(title) 为标题前缀查询服务，但在 LIKE 模糊搜索（两侧都有通配符）时用不上——这是故意保留的取舍，正文 8.3 节用 EXPLAIN 对比了前缀匹配与全模糊匹配对索引的使用差异。idx\_article\_publish(publish\_time) 覆盖前台按发布时间倒序展示已发布文章。
+关键字段分五组：
+
+\begin{itemize}
+\item \textbf{内容组：}\texttt{id}（自增主键）、\texttt{title}（标题）、\texttt{summary}（摘要）、\texttt{content}（正文，MEDIUMTEXT 长文本）、\texttt{view\_count}（阅读量）
+\item \textbf{关联组：}\texttt{category\_id}（所属分类，外键 FK）、\texttt{author\_id}（作者，外键 FK）、\texttt{auditor\_id}（最后审核人，弱引用，可空）
+\item \textbf{状态组：}\texttt{status}（文章状态，默认 DRAFT）、\texttt{version}（乐观锁版本号）、\texttt{deleted}（逻辑删除）
+\item \textbf{审核组：}\texttt{audit\_opinion}（审核意见）、\texttt{offline\_reason}（下架原因）、\texttt{audit\_time/submit\_time/publish\_time}（审核、提交、发布三个时间点）
+\item \textbf{审计组：}\texttt{create\_time}、\texttt{update\_time}、\texttt{create\_by}、\texttt{update\_by}
+\end{itemize}
+
+\noindent\textbf{一、auditor\_id：弱引用}
+
+\texttt{auditor\_id} 不建外键、只是弱引用。审核员账号将来可能被删除，而文章需要永久保留“谁审过”的记录；如果建外键，删人时审核记录会被级联清除，弱引用只存 id、不绑定，更适合这种松散关系。
+
+\noindent\textbf{二、status：直接存枚举字面值}
+
+\texttt{status} 用 VARCHAR 直接存五个状态的英文名字：DRAFT 草稿、PENDING 待审核、REJECTED 被驳回、PUBLISHED 已发布、OFFLINE 已下架。为什么不建状态字典表？五个状态由代码中的 \texttt{ArticleStateMachine} 状态机显式定义，状态怎么迁移也写死在代码里；用字典表可能出现“表里多了一个状态、代码却不支持”的脏数据。现在要加状态必须同时改代码枚举和迁移矩阵，保证数据和代码永远一致。
+
+\noindent\textbf{三、version：乐观锁防并发覆盖}
+
+\texttt{version} 配合 \texttt{@Version} 注解工作，记录这条数据当前的版本号。两个用户同时编辑同一篇草稿时，两人打开拿到的都是 version=3；先提交的人修改成功，version 自动变成 4；后提交的人还拿着 3 去保存，系统发现版本对不上，直接拒绝并返回错误码 40900，而不是悄悄把前一个人的修改覆盖掉。
+
+\noindent\textbf{四、四条索引的取舍}
+
+四条索引各自对应一个查询场景，具体覆盖关系见前面的索引表。这里补充一条容易忽略的取舍：\texttt{idx\_article\_title} 只对标题前缀匹配生效，两侧都带通配符的全模糊 LIKE 用不上它，8.3 节用 EXPLAIN 对这两种写法做了对比，这是有意保留而非漏建。
+
+\noindent\textbf{设计考点（问答）}
+
+\noindent\textbf{问：}\texttt{auditor\_id} 为什么不建外键？
+
+\noindent\textbf{答：}审核员可能被删除而文章要永久保留审核记录，建外键会在删人时级联清除记录；弱引用只存 id、不绑定，更适合这种松散关系。
+
+\noindent\textbf{问：}\texttt{status} 为什么直接存枚举字面值，不建状态字典表？
+
+\noindent\textbf{答：}状态由代码中的状态机显式定义，字典表可能产生代码不支持的多余状态；直接存字面值、改状态必须改代码，保证数据和代码一致。
+
+\noindent\textbf{问：}\texttt{version} 乐观锁怎么防止并发覆盖？
+
+\noindent\textbf{答：}编辑时带上当前版本号，提交时系统核对版本是否已被别人改动；先提交者版本号更新，后提交者版本对不上会收到 40900，避免静默覆盖。
 
 
 \subsection*{\texorpdfstring{\textbf{4.6 sys\_log 操作日志表}}{4.6 sys\_log 操作日志表}}\label{sys_log-ux64cdux4f5cux65e5ux5fd7ux8868}
