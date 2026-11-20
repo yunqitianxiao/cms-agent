@@ -273,7 +273,25 @@ guide:use & 使用站内引导 & ✓ & ✓ & ✓ & ✓ \\
 \section*{\texorpdfstring{\textbf{三、技术选型与依据}}{三、技术选型与依据}}\label{ux4e09ux6280ux672fux9009ux578bux4e0eux4f9dux636e}
 \addcontentsline{toc}{section}{三、技术选型与依据}
 
-运行时选用 Java 11 加 Spring MVC 5.3.31。课程要求 SSM 整合，手动装配 Spring MVC 而不是依赖 Boot 自动配置，把精力放在 AOP、状态机这些考点上。不上 Spring 6 或 Boot 3，因为本机 JDK 11，Jakarta 包名迁移会连带改大量文档。部署于外置 Tomcat 9，用 Servlet 3 的 AbstractAnnotationConfigDispatcherServletInitializer 无 web.xml 启动。
+技术选型不以堆叠框架为目的，而是从系统需要解决的真实问题出发，让每一项技术落在分层架构中最能发挥作用的位置，做到“用在点子上”。下面先建立系统的总体分层骨架，再逐层说明各环节选用的技术及其依据。
+
+\includegraphics[width=\linewidth]{media/image75.png}
+
+系统分层架构图
+
+系统自上而下分为五层。一次请求从进入系统到完成数据存取，依次穿过这五层；每一层只承担单一而明确的职责，层与层之间通过约定的接口协作、互不越界。各层职责分述如下：
+
+\textbf{表现层}是用户直接面对的界面，由 Thymeleaf 模板、原生 ES Module 与站内引导悬浮球构成，负责页面渲染与用户交互，把系统能力以可读、可操作的形式呈现，并将用户操作转化为发往后端的请求。\\
+\textbf{接入层}基于 Spring MVC，是系统的门户与调度中枢：过滤器与登录拦截器先核验会话身份，将未授权访问挡在最外层，控制器再完成入参绑定、合法性校验与权限注解确认，并把请求路由到对应入口，确保进入业务环节的数据真实、完整且合规。\\
+\textbf{业务层}是系统的核心，集中承载业务规则、状态流转与事务边界，使涉及多张数据表的操作要么全部成功、要么整体回滚，专门回答“这件事按业务规则应当如何处理”。\\
+\textbf{持久层}承担业务对象与数据记录之间的转换，通过映射器把业务操作翻译为结构化查询，并屏蔽底层数据库的差异，使业务层无需关心数据具体如何存取。\\
+\textbf{数据层}是系统的底座，由关系型数据库统一持久化用户、角色、权限、分类、文章与日志等全部数据，保障数据的可靠存储与并发访问。
+
+此外，日志记录、权限校验与异常处理等并不专属于某一层、却又需要贯穿各层的逻辑，被统一抽象为切面（AOP）织入，从而避免在业务代码中重复书写。其中日志切面位于最外层、权限切面位于其内层，因此即便某个请求因权限不足而被拦截，日志切面仍能先行捕获并留存一条越权记录，做到“越权必留痕”。两个切面的先后次序并非随意安排，而是一条经过权衡的设计决策。
+
+在上述分层骨架之下，各环节的具体技术选型如下。
+
+运行时选用 Java 11 加 Spring MVC 5.3.31，并采用手动装配而非 Spring Boot 的自动配置。其价值在于，DispatcherServlet、拦截器链、AOP 切面与事务管理器等组件的装配过程全部显式可见、可控可调，使权限切面与日志切面的先后次序、会话拦截的作用范围都能按设计精确落地，而不是被自动配置的默认值掩盖。系统通过 Servlet 3 的 AbstractAnnotationConfigDispatcherServletInitializer 实现无 web.xml 启动，部署于外置 Tomcat 9。不随 Spring 6 或 Boot 3 升级，是因为运行环境锁定 JDK 11，而 Jakarta 命名空间迁移会牵动整套配置与依赖，在不增加业务价值的情况下引入无谓的迁移风险。
 
 持久层选用 MyBatis-Plus 3.5.3.1。分页、乐观锁、逻辑删除、自动填充都是插件级开关，通过 PersistenceConfig 手动装配 MybatisSqlSessionFactoryBean 而非 Boot 自动配置。不用 JPA，因为三表 join 加动态条件这类复杂列表 SQL 用 XML 写更直观，也避免隐式 N+1。
 
@@ -283,7 +301,7 @@ guide:use & 使用站内引导 & ✓ & ✓ & ✓ & ✓ \\
 
 密码存储选用 BCrypt，只引 spring-security-crypto 的加密模块。不引整套 Spring Security，因为后者会接管鉴权链路，与自定义拦截器和 AOP 冲突。不用 MD5，它不可逆的理由在演示时站不住脚。
 
-接口文档用 OpenAPI 3.0 手工维护，配合脚本对账。文档与代码分开，才有对账这个动作可展示。不用 springdoc 自动生成，自动生成的文档会掩盖接口改了而文档没改的问题。
+接口文档用 OpenAPI 3.0 手工维护，并通过脚本与代码自动对账。正因为文档独立于代码维护，二者之间的偏差才能被对账脚本及时发现并纠正。不用 springdoc 自动生成，是因为自动生成的文档始终与代码瞬时一致，反而会掩盖“接口已改、文档未跟”这类真实协作中常见的脱节问题。
 
 \section*{\texorpdfstring{\textbf{四、数据库架构设计}}{四、数据库架构设计}}\label{ux56dbux6570ux636eux5e93ux67b6ux6784ux8bbeux8ba1}
 \addcontentsline{toc}{section}{四、数据库架构设计}
@@ -599,25 +617,8 @@ sys\_role\_permission & 联合 PK (role\_id, perm\_id) & 双向 FK & idx\_rp\_pe
 \section*{\texorpdfstring{\textbf{五、系统设计图}}{五、系统设计图}}\label{ux4e94ux7cfbux7edfux8bbeux8ba1ux56fe}
 \addcontentsline{toc}{section}{五、系统设计图}
 
-\subsection*{\texorpdfstring{\textbf{5.1 分层架构}}{5.1 分层架构}}\label{ux5206ux5c42ux67b6ux6784}
-\addcontentsline{toc}{subsection}{5.1 分层架构}
-
-\includegraphics[width=\linewidth]{media/image75.png}
-
-系统分层架构图
-
-系统自上而下分为五层。一次请求从进入系统到完成数据存取，依次穿过这五层；每一层只承担单一而明确的职责，层与层之间通过约定的接口协作、互不越界。各层职责分述如下：
-
-\textbf{接入层}是系统的门户，负责核验访问者的会话身份，并把请求导向对应的处理入口，先解决“谁能进来、进来后去往何处”的问题，从而将未授权的访问挡在系统最外层。\\
-\textbf{控制层}是请求的调度中枢，对入参进行绑定与合法性校验，并依据权限注解确认该请求是否具备相应的操作资格，确保进入后续处理的数据真实、完整且合规，不把脏数据与越权请求放入业务环节。\\
-\textbf{业务层}是系统的核心，集中承载业务规则、状态流转与事务边界，使涉及多张数据表的操作要么全部成功、要么整体回滚，专门回答“这件事按业务规则应当如何处理”。\\
-\textbf{持久层}承担业务对象与数据记录之间的转换，通过映射器把业务操作翻译为结构化查询，并屏蔽底层数据库的差异，使业务层无需关心数据具体如何存取。\\
-\textbf{数据层}是系统的底座，由关系型数据库统一持久化用户、角色、权限、分类、文章与日志等全部数据，保障数据的可靠存储与并发访问。
-
-此外，日志记录、权限校验与异常处理等并不专属于某一层、却又需要贯穿各层的逻辑，被统一抽象为切面（AOP）织入，从而避免在业务代码中重复书写。其中日志切面位于最外层、权限切面位于其内层，因此即便某个请求因权限不足而被拦截，日志切面仍能先行捕获并留存一条越权记录，做到“越权必留痕”。两个切面的先后次序并非随意安排，而是一条经过权衡的设计决策。
-
-\subsection*{\texorpdfstring{\textbf{5.2 总体业务流程}}{5.2 总体业务流程}}\label{ux603bux4f53ux4e1aux52a1ux6d41ux7a0b}
-\addcontentsline{toc}{subsection}{5.2 总体业务流程}
+\subsection*{\texorpdfstring{\textbf{5.1 总体业务流程}}{5.1 总体业务流程}}\label{ux603bux4f53ux4e1aux52a1ux6d41ux7a0b}
+\addcontentsline{toc}{subsection}{5.1 总体业务流程}
 
 \includegraphics[width=\linewidth,height=0.83\textheight,keepaspectratio]{media/image76.png}
 
@@ -627,8 +628,8 @@ sys\_role\_permission & 联合 PK (role\_id, perm\_id) & 双向 FK & idx\_rp\_pe
 
 文章沿这条主线在不同状态之间有序流转：由作者建立草稿，提交后进入待审核，审核通过即对外发布，被驳回则退回修改并重新进入审核，已发布内容可在填写原因后下架，下架之后仍可重新提交。删除被置于状态机之外，仅草稿与已驳回状态允许，以避免已发布内容绕过既定流程被直接移除。与此同时，链路上的关键操作均由日志切面统一记录，成功、越权与失败分别归类，并以独立事务写入，即使业务回滚也不丢失，从而使整条业务流程事后可追溯、可审计。
 
-\subsection*{\texorpdfstring{\textbf{5.3 文章状态机}}{5.3 文章状态机}}\label{ux6587ux7ae0ux72b6ux6001ux673a}
-\addcontentsline{toc}{subsection}{5.3 文章状态机}
+\subsection*{\texorpdfstring{\textbf{5.2 文章状态机}}{5.2 文章状态机}}\label{ux6587ux7ae0ux72b6ux6001ux673a}
+\addcontentsline{toc}{subsection}{5.2 文章状态机}
 
 \includegraphics[width=\linewidth]{media/image4.png}
 
@@ -636,8 +637,8 @@ sys\_role\_permission & 联合 PK (role\_id, perm\_id) & 双向 FK & idx\_rp\_pe
 
 状态机是\textbf{代码里的显式表}（ArticleStateMachine），不是散落在各 Service 里的 if。next(当前状态, 动作) 查不到边就抛 BizException(INVALID\_STATE)，异常文案同时带出"当前状态"与"被拒绝的动作"。
 
-\subsection*{\texorpdfstring{\textbf{5.4 站内引导时序}}{5.4 站内引导时序}}\label{ux7ad9ux5185ux5f15ux5bfcux65f6ux5e8f}
-\addcontentsline{toc}{subsection}{5.4 站内引导时序}
+\subsection*{\texorpdfstring{\textbf{5.3 站内引导时序}}{5.3 站内引导时序}}\label{ux7ad9ux5185ux5f15ux5bfcux65f6ux5e8f}
+\addcontentsline{toc}{subsection}{5.3 站内引导时序}
 
 \includegraphics[width=\linewidth]{media/image5.png}
 
@@ -994,7 +995,7 @@ public class ArticleBatchRequest {
 \end{tikzpicture}
 \end{center}
 
-审核流转的完整五态七迁见 5.3 节。所有状态变更均通过 ArticleStateMachine.next() 查迁移表判定，不在 Service 层中用条件判断分散处理。审核员不能审核自己提交的稿件，Service 中比对 article.authorId 与当前登录用户 id，相同则拒绝。审核全程留痕：通过时写 auditor\_id、audit\_time、publish\_time，驳回时写 auditor\_id、audit\_time、audit\_opinion。
+审核流转的完整五态七迁见 5.2 节。所有状态变更均通过 ArticleStateMachine.next() 查迁移表判定，不在 Service 层中用条件判断分散处理。审核员不能审核自己提交的稿件，Service 中比对 article.authorId 与当前登录用户 id，相同则拒绝。审核全程留痕：通过时写 auditor\_id、audit\_time、publish\_time，驳回时写 auditor\_id、audit\_time、audit\_opinion。
 
 \subsubsection*{\texorpdfstring{\textbf{运行结果}}{运行结果}}\label{sec:art-result}
 \addcontentsline{toc}{subsubsection}{运行结果}
