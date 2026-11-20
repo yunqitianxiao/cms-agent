@@ -1,7 +1,7 @@
 package com.ylf.cms.config;
 
-import com.ylf.cms.security.LoginUser;
-import com.ylf.cms.security.UserContext;
+import com.ylf.cms.common.security.UserContext;
+import com.ylf.cms.common.security.LoginUser;
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import org.apache.ibatis.reflection.MetaObject;
 import org.springframework.stereotype.Component;
@@ -10,9 +10,6 @@ import java.time.LocalDateTime;
 
 /**
  * 自动填充：create_time / update_time / create_by / update_by 一律由这里写入，业务代码不手写。
- *
- * create_by / update_by 从 UserContext 取。取不到（例如未登录的注册、定时任务）
- * 就不填，而不是填 0——0 会被误当成一个真实用户 id。
  */
 @Component
 public class AuditMetaObjectHandler implements MetaObjectHandler {

@@ -35,7 +35,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Result<Void>> handleBiz(BizException e) {
         ResultCode rc = e.getResultCode();
         return ResponseEntity.status(rc.getStatus())
-                .body(Result.fail(rc, e.getMessage()));
+                .body(Result.fail(rc, com.ylf.cms.common.util.SensitiveInfoDetector.mask(e.getMessage())));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -87,14 +87,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DuplicateKeyException.class)
     public ResponseEntity<Result<Void>> handleDuplicate(DuplicateKeyException e) {
         // 唯一索引兜底：并发下先查后插仍可能撞车，靠数据库约束给出可读错误
-        log.warn("唯一约束冲突: {}", e.getMostSpecificCause().getMessage());
+        log.warn("发生唯一约束冲突");
         return ResponseEntity.status(ResultCode.DUPLICATE.getStatus())
                 .body(Result.fail(ResultCode.DUPLICATE));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Void>> handleOther(Exception e) {
-        log.error("未捕获异常", e);
+        log.error("未捕获异常，类型={}，位置={}",e.getClass().getName(),java.util.Arrays.toString(e.getStackTrace()));
         return ResponseEntity.status(ResultCode.INTERNAL.getStatus())
                 .body(Result.fail(ResultCode.INTERNAL));
     }

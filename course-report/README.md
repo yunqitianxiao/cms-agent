@@ -1,5 +1,19 @@
-# 报告工作副本
+# 课程设计报告
 
-课程设计报告 LaTeX 源文件保存在 课程设计报告.tex，排版定义保存在 preamble.tex，media/ 保留原报告的图形素材和浏览器截图。
+《JAVA 框架技术（一）》课程设计报告的 LaTeX 源文件与编译产物。
 
-此版本是代码同步中的中间稿，不能当作最终报告提交。现有 image1.png 至 image53.png 来自原始报告；media/current 中的页面截图是 Spring Boot 到 Spring MVC 迁移前的历史系统参考。最终报告将重新制作 Spring MVC 版本的真实截图并更新接口、测试数量与数据库说明。
+- `课程设计报告.tex`：自包含主文件，可直接用 XeLaTeX 编译。
+- `课程设计报告.pdf`：已编译的最终 PDF。
+- `media/`：全部配图（image1–image61）；其中 `media/current/` 保留迁移前的历史页面截图供参考。
+- `preamble.tex`：早期拆分的排版定义，当前主文件已自包含、不再引用，仅作存档。
+
+## 重新编译
+
+使用 XeLaTeX（在 TeX Live 2026 上验证），在本目录执行两遍以生成目录与交叉引用：
+
+```bash
+xelatex 课程设计报告.tex
+xelatex 课程设计报告.tex
+```
+
+图片通过 `\graphicspath{{media/}}` 解析，tex 与 media 需保持在同一目录，请勿单独移动其中一个。

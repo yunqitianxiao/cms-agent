@@ -1,148 +1,159 @@
 package com.ylf.cms.catalog.category.service;
 
-import com.ylf.cms.catalog.category.entity.CmsCategory;
-import com.ylf.cms.catalog.category.mapper.CategoryCountRow;
-import com.ylf.cms.catalog.category.mapper.CmsCategoryMapper;
-import com.ylf.cms.catalog.category.vo.CategoryVO;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.ylf.cms.common.exception.BizException;
 import com.ylf.cms.common.result.ResultCode;
+import com.ylf.cms.catalog.category.dto.CategorySaveRequest;
+import com.ylf.cms.catalog.category.entity.CmsCategory;
+import com.ylf.cms.catalog.category.mapper.CmsCategoryMapper;
+import com.ylf.cms.catalog.category.vo.CategoryVO;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-/**
- * 分类的只读服务。
- *
- * 智能体要回答"某个分类下有多少篇文章"、以及"站点里有没有配分类"，
- * 这两件事都必须来自数据库而不是手写常量，所以这里同时提供树与计数。
- *
- * 计数口径（写死在这里，测试按同一口径断言）：
- * 节点数字 = 自身 + 全部子孙下"已发布且未删除"的文章数；
- * 与分类自身是否启用无关——停用只是前端不给选，不改变历史文章的归属。
- */
 @Service
+@RequiredArgsConstructor
 public class CategoryService {
 
-    /** 分类最多三级，与 schema.sql 的 level 注释一致 */
     public static final int MAX_LEVEL = 3;
-
-    private static final long ROOT_PARENT_ID = 0L;
 
     private final CmsCategoryMapper categoryMapper;
 
-    public CategoryService(CmsCategoryMapper categoryMapper) {
-        this.categoryMapper = categoryMapper;
-    }
-
-    /**
-     * 分类树，按 sort、id 排序。
-     *
-     * @param onlyEnabled true 时停用分类连同其整棵子树一并移除。这里刻意不把
-     *                    "父停用、子启用"的子节点挂到根上——那样它看起来像一个
-     *                    一级分类，用户会以为站点结构变了。计数在剪枝之前算好，
-     *                    所以父节点的数字仍包含被剪掉的子树。
-     */
     public List<CategoryVO> tree(boolean onlyEnabled) {
-        List<CmsCategory> all = categoryMapper.selectAllAlive();
-        Map<Long, Long> directCounts = loadDirectCounts();
-
-        Map<Long, CategoryVO> byId = new LinkedHashMap<>();
-        for (CmsCategory category : all) {
-            CategoryVO vo = toVO(category);
-            vo.setArticleCount(directCounts.getOrDefault(category.getId(), 0L));
-            byId.put(category.getId(), vo);
+        LambdaQueryWrapper<CmsCategory> qw = new LambdaQueryWrapper<CmsCategory>()
+                .orderByAsc(CmsCategory::getSort).orderByAsc(CmsCategory::getId);
+        if (onlyEnabled) {
+            qw.eq(CmsCategory::getStatus, 1);
         }
-
-        List<CategoryVO> roots = new ArrayList<>();
-        for (CategoryVO vo : byId.values()) {
-            CategoryVO parent = (vo.getParentId() == null || vo.getParentId() == ROOT_PARENT_ID)
-                    ? null : byId.get(vo.getParentId());
-            if (parent == null) {
-                // 根节点，或父分类已被逻辑删除——后者不能悄悄消失，挂到根上并保持
-                // 它自己的文章计数，否则"技术 > 后端 > Java"里的后端一删，Java 就没了
-                roots.add(vo);
-            } else {
-                parent.getChildren().add(vo);
-            }
-        }
-
-        for (CategoryVO root : roots) {
-            rollUp(root);
-        }
-        return onlyEnabled ? pruneDisabled(roots) : roots;
+        List<CmsCategory> all = categoryMapper.selectList(qw);
+        return buildTree(all);
     }
 
-    /** 扁平列表，按层级、排序号排。智能体用它判断"站点配了分类没有"。 */
     public List<CategoryVO> listFlat() {
-        List<CmsCategory> all = categoryMapper.selectAllAlive();
-        List<CategoryVO> list = new ArrayList<>(all.size());
-        for (CmsCategory category : all) {
-            list.add(toVO(category));
+        List<CmsCategory> all = categoryMapper.selectList(new LambdaQueryWrapper<CmsCategory>()
+                .orderByAsc(CmsCategory::getLevel)
+                .orderByAsc(CmsCategory::getSort)
+                .orderByAsc(CmsCategory::getId));
+        List<CategoryVO> list = new ArrayList<>();
+        for (CmsCategory c : all) {
+            list.add(toVO(c));
         }
-        list.sort(Comparator.comparing(CategoryVO::getLevel, Comparator.nullsLast(Integer::compareTo))
-                .thenComparing(CategoryVO::getSort, Comparator.nullsLast(Integer::compareTo))
-                .thenComparing(CategoryVO::getId, Comparator.nullsLast(Long::compareTo)));
         return list;
     }
 
+    @Transactional
+    public Long create(CategorySaveRequest request) {
+        long parentId = request.getParentId() == null ? 0L : request.getParentId();
+        int level = 1;
+        if (parentId != 0) {
+            CmsCategory parent = categoryMapper.selectById(parentId);
+            if (parent == null) {
+                throw new BizException(ResultCode.BAD_REQUEST, "上级分类不存在");
+            }
+            level = parent.getLevel() + 1;
+            if (level > MAX_LEVEL) {
+                throw new BizException(ResultCode.CATEGORY_LEVEL_EXCEED);
+            }
+        }
+        checkNameUnique(parentId, request.getName(), null);
+
+        CmsCategory category = new CmsCategory();
+        category.setParentId(parentId);
+        category.setName(request.getName().trim());
+        // level 由服务端推导，绝不信前端传的值
+        category.setLevel(level);
+        category.setSort(request.getSort() == null ? 100 : request.getSort());
+        category.setStatus(request.getStatus());
+        category.setDescription(request.getDescription());
+        categoryMapper.insert(category);
+        return category.getId();
+    }
+
+    @Transactional
+    public void update(Long id, CategorySaveRequest request) {
+        CmsCategory category = requireCategory(id);
+        checkNameUnique(category.getParentId(), request.getName(), id);
+        checkCanDisable(id, request.getStatus());
+        category.setName(request.getName().trim());
+        if (request.getSort() != null) {
+            category.setSort(request.getSort());
+        }
+        category.setStatus(request.getStatus());
+        category.setDescription(request.getDescription());
+        categoryMapper.updateById(category);
+    }
+
+    @Transactional
+    public void updateStatus(Long id, Integer status) {
+        CmsCategory category = requireCategory(id);
+        checkCanDisable(id, status);
+        category.setStatus(status);
+        categoryMapper.updateById(category);
+    }
+
     /**
-     * 某分类及其全部子孙的 id（含自身）。文章列表"按分类筛选"选父分类时，
-     * 要能看到子分类下的文章，否则用户会觉得列表漏数据。
-     *
-     * 分类不存在（或已逻辑删除）时返回空列表，不抛异常——调用方在拼 IN 条件，
-     * 空列表天然得到"没有结果"。
+     * 父分类停用后子分类还启用着，会留下"父不可见、子仍可选"的矛盾状态：
+     * 新建文章的下拉里还能选到那个子分类，树却没有它的上级。
+     */
+    private void checkCanDisable(Long id, Integer status) {
+        if (status == null || status == 1) {
+            return;
+        }
+        int enabled = categoryMapper.countEnabledChildren(id);
+        if (enabled > 0) {
+            throw new BizException(ResultCode.IN_USE,
+                    "还有 " + enabled + " 个启用的子分类，请先停用子分类");
+        }
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        requireCategory(id);
+        if (categoryMapper.countChildren(id) > 0) {
+            throw new BizException(ResultCode.IN_USE, "存在子分类，不能删除");
+        }
+        if (categoryMapper.countArticles(id) > 0) {
+            throw new BizException(ResultCode.IN_USE, "该分类下仍有文章，不能删除");
+        }
+        categoryMapper.deleteById(id);
+    }
+
+    /**
+     * 某分类及其全部子孙分类的 id。按文章列表的"按分类筛选"语义，
+     * 选了父分类应该能看到子分类下的文章，否则用户会觉得列表漏数据。
      */
     public List<Long> descendantIds(Long rootId) {
-        if (rootId == null) {
-            return Collections.emptyList();
+        List<CmsCategory> all = categoryMapper.selectList(new LambdaQueryWrapper<CmsCategory>()
+                .select(CmsCategory::getId, CmsCategory::getParentId));
+        Map<Long, List<Long>> childrenOf = new java.util.HashMap<>();
+        for (CmsCategory c : all) {
+            childrenOf.computeIfAbsent(c.getParentId(), k -> new ArrayList<>()).add(c.getId());
         }
-        Map<Long, List<Long>> childrenOf = new HashMap<>();
-        Set<Long> known = new HashSet<>();
-        for (CmsCategory category : categoryMapper.selectAllAlive()) {
-            known.add(category.getId());
-            long parentId = category.getParentId() == null ? ROOT_PARENT_ID : category.getParentId();
-            childrenOf.computeIfAbsent(parentId, key -> new ArrayList<>()).add(category.getId());
-        }
-        if (!known.contains(rootId)) {
-            return Collections.emptyList();
-        }
-
         List<Long> result = new ArrayList<>();
-        Set<Long> visited = new HashSet<>();
-        Deque<Long> stack = new ArrayDeque<>();
-        stack.push(rootId);
-        while (!stack.isEmpty()) {
-            Long id = stack.pop();
-            // parent_id 指向自己或形成环时，visited 保证不重复展开、不死循环
-            if (!visited.add(id)) {
-                continue;
-            }
-            result.add(id);
-            List<Long> children = childrenOf.get(id);
-            if (children != null) {
-                for (Long child : children) {
-                    stack.push(child);
-                }
-            }
-        }
+        collect(rootId, childrenOf, result);
         return result;
     }
 
-    /** 发布/编辑文章时校验分类可用：必须存在且处于启用状态 */
-    public CmsCategory requireEnabled(Long id) {
-        if (id == null) {
-            throw new BizException(ResultCode.BAD_REQUEST, "分类不能为空");
+    private void collect(Long id, Map<Long, List<Long>> childrenOf, List<Long> acc) {
+        acc.add(id);
+        List<Long> children = childrenOf.get(id);
+        if (children == null) {
+            return;
         }
+        for (Long child : children) {
+            if (!acc.contains(child)) {
+                collect(child, childrenOf, acc);
+            }
+        }
+    }
+
+    /** 发布文章时校验：分类必须存在且为启用状态 */
+    public CmsCategory requireEnabled(Long id) {
         CmsCategory category = categoryMapper.selectById(id);
         if (category == null) {
             throw new BizException(ResultCode.BAD_REQUEST, "分类不存在");
@@ -153,47 +164,58 @@ public class CategoryService {
         return category;
     }
 
-    private Map<Long, Long> loadDirectCounts() {
-        Map<Long, Long> direct = new HashMap<>();
-        for (CategoryCountRow row : categoryMapper.countPublishedByCategory()) {
-            if (row.getCategoryId() != null && row.getTotal() != null) {
-                direct.put(row.getCategoryId(), row.getTotal());
+    private void checkNameUnique(long parentId, String name, Long excludeId) {
+        LambdaQueryWrapper<CmsCategory> qw = new LambdaQueryWrapper<CmsCategory>()
+                .eq(CmsCategory::getParentId, parentId)
+                .eq(CmsCategory::getName, name.trim());
+        if (excludeId != null) {
+            qw.ne(CmsCategory::getId, excludeId);
+        }
+        Long count = categoryMapper.selectCount(qw);
+        if (count != null && count > 0) {
+            throw new BizException(ResultCode.DUPLICATE, "同一上级下已存在同名分类");
+        }
+    }
+
+    private CmsCategory requireCategory(Long id) {
+        CmsCategory category = categoryMapper.selectById(id);
+        if (category == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "分类不存在");
+        }
+        return category;
+    }
+
+    private List<CategoryVO> buildTree(List<CmsCategory> all) {
+        Map<Long, CategoryVO> byId = new LinkedHashMap<>();
+        for (CmsCategory c : all) {
+            byId.put(c.getId(), toVO(c));
+        }
+        List<CategoryVO> roots = new ArrayList<>();
+        for (CategoryVO vo : byId.values()) {
+            if (vo.getParentId() == null || vo.getParentId() == 0) {
+                roots.add(vo);
+            } else {
+                CategoryVO parent = byId.get(vo.getParentId());
+                // 父节点被停用/过滤掉时，子节点挂到根上而不是凭空消失
+                if (parent == null) {
+                    roots.add(vo);
+                } else {
+                    parent.getChildren().add(vo);
+                }
             }
         }
-        return direct;
+        return roots;
     }
 
-    /** 自底向上把子孙的文章数加到父节点，返回该子树总数 */
-    private long rollUp(CategoryVO node) {
-        long total = node.getArticleCount() == null ? 0L : node.getArticleCount();
-        for (CategoryVO child : node.getChildren()) {
-            total += rollUp(child);
-        }
-        node.setArticleCount(total);
-        return total;
-    }
-
-    private List<CategoryVO> pruneDisabled(List<CategoryVO> nodes) {
-        List<CategoryVO> kept = new ArrayList<>();
-        for (CategoryVO node : nodes) {
-            if (node.getStatus() == null || node.getStatus() != 1) {
-                continue;
-            }
-            node.setChildren(pruneDisabled(node.getChildren()));
-            kept.add(node);
-        }
-        return kept;
-    }
-
-    private CategoryVO toVO(CmsCategory category) {
+    private CategoryVO toVO(CmsCategory c) {
         CategoryVO vo = new CategoryVO();
-        vo.setId(category.getId());
-        vo.setParentId(category.getParentId());
-        vo.setName(category.getName());
-        vo.setLevel(category.getLevel());
-        vo.setSort(category.getSort());
-        vo.setStatus(category.getStatus());
-        vo.setDescription(category.getDescription());
+        vo.setId(c.getId());
+        vo.setParentId(c.getParentId());
+        vo.setName(c.getName());
+        vo.setLevel(c.getLevel());
+        vo.setSort(c.getSort());
+        vo.setStatus(c.getStatus());
+        vo.setDescription(c.getDescription());
         return vo;
     }
 }

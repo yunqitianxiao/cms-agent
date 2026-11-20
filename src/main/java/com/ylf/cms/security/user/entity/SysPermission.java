@@ -10,14 +10,8 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 权限点。对应 sys_permission。
- *
- * perm_code 是全站契约：切面按它判权、站点地图按它校验卡片，改名等于改接口，
- * 已经发出去的码只增不减。
- *
- * 这张表由初始化脚本写入，运行期只读，所以没有 status / deleted：
- * 停用一个权限点要改的是代码里的常量，而不是在库里悄悄改一行——
- * 后者会让"权限码集合是稳定的"这个前提失效。
+ * 权限点。权限点由初始化脚本写入，运行期只读——否则"哪些权限存在"
+ * 就变成了运行时可变的，SiteMap 的启动期校验也就失去了意义。
  */
 @Data
 @TableName("sys_permission")
@@ -30,7 +24,7 @@ public class SysPermission {
 
     private String permName;
 
-    /** 功能分组：内容 / 审核 / 分类 / 账号与权限 / 系统 */
+    /** 分组，用于前端按类展示 */
     private String permGroup;
 
     private String description;

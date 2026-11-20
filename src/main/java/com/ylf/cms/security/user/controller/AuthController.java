@@ -1,7 +1,9 @@
 package com.ylf.cms.security.user.controller;
 
-import com.ylf.cms.security.LoginUser;
-import com.ylf.cms.security.UserContext;
+import com.ylf.cms.common.security.LoginUser;
+import com.ylf.cms.common.security.UserContext;
+import com.ylf.cms.common.annotation.OperLog;
+import com.ylf.cms.common.constant.LogType;
 import com.ylf.cms.common.constant.SessionKeys;
 import com.ylf.cms.common.result.Result;
 import com.ylf.cms.security.user.dto.LoginRequest;
@@ -26,6 +28,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
+    @OperLog(type = LogType.LOGIN, value = "登录")
     public Result<LoginUser> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
         LoginUser user = authService.authenticate(request.getUsername(), request.getPassword());
         // 防会话固定：登录成功后换一个新 Session，旧 SessionId 作废
@@ -38,6 +41,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @OperLog(type = LogType.LOGIN, value = "退出登录")
     public Result<Void> logout(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session != null) {
@@ -47,6 +51,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
+    @OperLog(type = LogType.USER, value = "注册")
     public Result<Long> register(@Valid @RequestBody RegisterRequest request) {
         return Result.ok(authService.register(request));
     }

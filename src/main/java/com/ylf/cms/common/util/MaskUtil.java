@@ -1,82 +1,38 @@
 package com.ylf.cms.common.util;
-
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.util.StringUtils;
-
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
-/**
- * 日志参数脱敏。
- *
- * 说明一个容易忽略的点：脱敏不能只在"密码字段"上做。
- * 用户可能把口令写进 nickname、或把 API key 写进文章摘要，
- * 所以这里按"字段名关键字"匹配，并且截断超长参数，避免日志表被大字段撑爆。
- */
+import com.fasterxml.jackson.databind.node.*;
+import java.util.*;
+/** 递归按字段名脱敏，再按内容打码，最后截断；序列化失败不记录原文。 */
 public final class MaskUtil {
-
-    private static final Set<String> SENSITIVE_KEYS = new HashSet<>(Arrays.asList(
-            "password", "oldPassword", "newPassword", "confirmPassword",
-            "token", "apiKey", "api-key", "secret", "credential"
-    ));
-
-    private static final int MAX_LENGTH = 1500;
-
-    private MaskUtil() {
-    }
-
-    public static String mask(Object[] args, ObjectMapper mapper) {
-        if (args == null || args.length == 0) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (Object arg : args) {
-            if (arg == null) {
-                continue;
-            }
-            if (isInfrastructureBean(arg)) {
-                continue;
-            }
-            if (sb.length() > 0) {
-                sb.append(" | ");
-            }
-            sb.append(toJson(arg, mapper));
-        }
-        String s = sb.toString();
-        return s.length() > MAX_LENGTH ? s.substring(0, MAX_LENGTH) + "...(截断)" : s;
-    }
-
-    /**
-     * Servlet 对象序列化会爆炸，直接跳过。
-     * 不能只看类名前缀：容器传入的实例是 org.apache.catalina.connector.RequestFacade，
-     * 包名一个都不沾 javax.servlet，却是标准的 HttpServletRequest。
-     */
-    private static boolean isInfrastructureBean(Object arg) {
-        if (arg instanceof javax.servlet.ServletRequest || arg instanceof javax.servlet.ServletResponse) {
-            return true;
-        }
-        String name = arg.getClass().getName();
-        return name.startsWith("javax.servlet") || name.startsWith("jakarta.servlet")
-                || name.startsWith("org.springframework.web")
-                || name.startsWith("org.springframework.ui");
-    }
-
-    @SuppressWarnings("unchecked")
-    private static String toJson(Object arg, ObjectMapper mapper) {
-        try {
-            Object node = mapper.convertValue(arg, Object.class);
-            if (node instanceof Map) {
-                ((Map<String, Object>) node).forEach((k, v) -> {
-                    if (SENSITIVE_KEYS.contains(k)) {
-                        ((Map<String, Object>) node).put(k, "***");
-                    }
-                });
-            }
-            return mapper.writeValueAsString(node);
-        } catch (Exception e) {
-            return StringUtils.truncate(String.valueOf(arg), 200).toString();
-        }
-    }
+ private MaskUtil() {}
+ private static final Set<String> KEYS = new HashSet<>(Arrays.asList("password","oldpassword","newpassword","confirmpassword","passwd","pwd","token","apikey","secret","credential","authorization","cookie"));
+ public static String mask(Object[] args,ObjectMapper mapper) {
+  if(args==null) return "";
+  List<String> parts=new ArrayList<>();
+  for(Object arg:args) {
+   if(arg==null || arg instanceof javax.servlet.ServletRequest || arg instanceof javax.servlet.ServletResponse || arg instanceof javax.servlet.http.HttpSession || arg instanceof org.springframework.ui.Model) continue;
+   try { parts.add(mapper.writeValueAsString(clean(mapper.valueToTree(arg)))); }
+   catch(Exception e) { parts.add("[参数无法序列化，未记录原文]"); }
+  }
+  String text=String.join(" | ",parts);
+  return text.length()>1500 ? text.substring(0,1500)+"...(截断)" : text;
+ }
+ private static JsonNode clean(JsonNode node) {
+  if(node.isObject()) {
+   ObjectNode object=(ObjectNode)node;
+   List<String> names=new ArrayList<>();object.fieldNames().forEachRemaining(names::add);
+   for(String name:names) {
+    String key=name.toLowerCase(Locale.ROOT).replaceAll("[-_ ]", "");
+    object.set(name,KEYS.contains(key)?TextNode.valueOf("***"):clean(object.get(name)));
+   }
+  } else if(node.isArray()) {
+   ArrayNode array=(ArrayNode)node;
+   for(int i=0;i<array.size();i++) array.set(i,clean(array.get(i)));
+  } else if(node.isTextual() || node.isNumber()) {
+   String text=node.asText(),safe=SensitiveInfoDetector.mask(text);
+   if(!text.equals(safe)) return TextNode.valueOf(safe);
+  }
+  return node;
+ }
 }

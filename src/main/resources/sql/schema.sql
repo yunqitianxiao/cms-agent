@@ -142,6 +142,7 @@ CREATE TABLE sys_log (
     ip          VARCHAR(64)           DEFAULT NULL,
     result      VARCHAR(20)  NOT NULL COMMENT 'SUCCESS/DENIED/FAIL',
     error_msg   VARCHAR(400)          DEFAULT NULL,
+    trace_id    VARCHAR(32)           DEFAULT NULL,
     cost_ms     BIGINT                DEFAULT NULL,
     create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),

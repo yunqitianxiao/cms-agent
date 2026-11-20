@@ -14,7 +14,6 @@
 \usepackage{calc}
 \usepackage{float}
 \usepackage{caption}
-\usepackage{fancyhdr,needspace,enumitem,placeins}
 \usepackage{xcolor}
 \usepackage{listings}
 \lstset{
@@ -45,6 +44,14 @@
 \emergencystretch=2em
 \captionsetup{font=small}
 
+% 截图预留位置：编译期显示为带边框的空框，替换真实截图时把 \shotplace{...} 整行换成 \includegraphics[width=\linewidth]{media/xxx.png}
+\setcounter{tocdepth}{3}
+\newcommand{\shotplace}[1]{%
+  \begin{center}
+    \fbox{\parbox[c][5.5cm][c]{0.82\linewidth}{\centering\small #1\\[0.4cm]（截图预留位置）}}
+  \end{center}\par
+}
+
 % 允许代码标识符在下划线处换行，减少越界
 \renewcommand{\_}{\textunderscore\allowbreak}
 
@@ -53,30 +60,8 @@
 
 \hypersetup{
   pdftitle={企业级 CMS 内容管理系统 · 课程设计报告},
-  pdfauthor={孙贤泽、姚霖锋、潘凤乐、王储},
+  pdfauthor={},
 }
-
-\setcounter{tocdepth}{2}
-\raggedbottom
-\setlist{itemsep=2pt,topsep=4pt,parsep=0pt}
-\setlength{\headheight}{15pt}
-\pagestyle{fancy}
-\fancyhf{}
-\fancyhead[L]{\small JAVA 框架技术（一）课程设计}
-\fancyhead[R]{\small 云章 CMS 内容管理系统}
-\fancyfoot[C]{\thepage}
-\renewcommand{\headrulewidth}{0.4pt}
-\ctexset{section={beforeskip=18pt,afterskip=10pt},subsection={beforeskip=12pt,afterskip=6pt},subsubsection={beforeskip=9pt,afterskip=4pt}}
-\clubpenalty=10000
-\widowpenalty=10000
-\captionsetup{font=small,labelfont=bf,skip=5pt}
-\lstset{basicstyle=\small\ttfamily,aboveskip=8pt,belowskip=8pt,xleftmargin=1em,framexleftmargin=0.4em}
-\newcommand{\reportfigure}[4][0.94\linewidth]{%
-  \begin{figure}[H]\centering
-  \includegraphics[width=#1,height=0.48\textheight,keepaspectratio]{#2}
-  \caption{#3}\label{#4}
-  \end{figure}}
-
 \begin{document}
 \begin{titlepage}
 \centering
@@ -85,7 +70,7 @@
 {\zihao{2}\heiti《JAVA 框架技术（一）》}\\[0.8cm]
 {\zihao{1}\heiti 课~程~设~计~报~告}\\[1.4cm]
 {\zihao{2}\heiti 企业级 CMS 内容管理系统}\\[0.6cm]
- {\zihao{4}\heiti 基于 Spring MVC 与 MyBatis-Plus 的实现}\\[3.2cm]
+{\zihao{4}\heiti —— Spring MVC + MyBatis-Plus 整合实践 ——}\\[3.2cm]
 
 {\zihao{4}\songti
 \begin{tabular}{rl}
@@ -99,33 +84,36 @@
 {\zihao{4}2026 年 11 月}
 \end{titlepage}
 
-\pagenumbering{Roman}
-{\small\tableofcontents}
-\clearpage
-\pagenumbering{arabic}
+\tableofcontents
+\newpage
+\section*{\texorpdfstring{\textbf{企业级 CMS 内容管理系统 · 课程设计报告}}{企业级 CMS 内容管理系统 · 课程设计报告}}\label{ux4f01ux4e1aux7ea7-cms-ux5185ux5bb9ux7ba1ux7406ux7cfbux7edf-ux8bfeux7a0bux8bbeux8ba1ux62a5ux544a}
 
-\section*{摘要}\label{ux6458ux8981}
+本报告对应《JAVA 框架技术（一）》课程，设计题目是企业级 CMS 内容管理系统，项目代号云章 CMS。技术栈为 Java 11、Spring MVC 5.3.31、MyBatis-Plus 3.5.3.1、MySQL 8 和 Thymeleaf，部署于外置 Tomcat 9，代码与本文同仓，位于 cms-project 目录，完成于 2026 年 11 月。
+
+\section*{\texorpdfstring{\textbf{摘要}}{摘要}}\label{ux6458ux8981}
 \addcontentsline{toc}{section}{摘要}
 
-本项目面向内容发布与审核场景，设计并实现了云章 CMS 内容管理系统。系统采用 Spring MVC、MyBatis-Plus 和 Thymeleaf，以外置 Tomcat 9 部署为 WAR，提供用户与角色管理、多级分类、文章编辑与审核、组合检索、操作日志及前台阅读功能。数据库以用户、角色、权限、文章、分类和日志六类实体为基础，通过关联表维护授权关系。
+本项目实现了一个可运行的企业级内容管理系统，覆盖四类角色、三级分类、五态七迁的文章审核流、接口级与数据级双层权限、操作日志审计、多维检索以及配套的前台阅读站。设计上有几条主线。六张核心表通过两张关联表形成完整的多对多关系，不使用单表开发。约束都写成可执行的判据，文章状态写成显式迁移表，模块边界写成 import 扫描测试，站点结构写成启动期硬校验，任何一条不满足就拒绝启动或测试变红。失败路径与成功路径同等对待，非法迁移、横向越权、并发覆盖、敏感信息、模型越界各自有明确的错误码和实测记录。
 
-系统使用接口权限校验和数据归属检查限制操作范围，以状态迁移表管理文章从草稿到发布、下架的过程，并通过统一异常处理和日志脱敏记录失败原因。列表查询通过关联取数减少逐条查询，站内引导模块通过页面卡片提供导航。项目已有测试记录覆盖状态迁移、权限边界和部分异常场景；并发性能和数据库集成测试仍需进一步补充。
+项目共 105 个 Java 源文件；17 个前端模块；13 个 Thymeleaf 模板；8 张数据表；站点地图从 RequestMappingHandlerMapping 反射生成，校验不过则服务拒绝启动。38 个单元测试，分属 7 个测试类，全部通过。
 
-\textbf{关键词：}内容管理系统；文章审核；权限控制；MyBatis-Plus；操作日志
-
-\section*{一、项目概述}\label{ux4e00ux9879ux76eeux6982ux8ff0}
+\section*{\texorpdfstring{\textbf{一、项目概述}}{一、项目概述}}\label{ux4e00ux9879ux76eeux6982ux8ff0}
 \addcontentsline{toc}{section}{一、项目概述}
 
-
-
-\subsection*{1.1 背景与目标}\label{ux80ccux666fux4e0eux76eeux6807}
+\subsection*{\texorpdfstring{\textbf{1.1 背景与目标}}{1.1 背景与目标}}\label{ux80ccux666fux4e0eux76eeux6807}
 \addcontentsline{toc}{subsection}{1.1 背景与目标}
 
-本项目以内容管理系统为对象，完成从用户登录、文章编写、提交审核到前台展示的完整业务流程。设计重点包括：为不同角色划分操作范围，保证文章按规定流程发布，维护分类与内容之间的关系，并记录关键操作以便排查问题。
+课程要求以 SSM 整合为基础，完成一套具备企业级工程特征的内容管理系统。这里的企业级不按功能多少衡量，而看四个方面。
 
-系统名称为云章 CMS。管理端服务于作者、审核员和管理员，前台面向内容读者。报告按照需求、数据库、系统设计、功能实现、测试及部署的顺序说明项目。
+数据不是孤岛。六张核心表之间有多对多关联和真实外键，列表页需要跨表取数，删除需要做引用检查。
 
-\subsection*{1.2 系统功能概览}\label{ux6253ux5f00ux80fdux5e72ux4ec0ux4e48}
+权限不是菜单。既判断这个角色能不能调这个接口，也判断这个用户能不能改这一行数据。
+
+行为可追溯。所有写操作与登录都留痕，越权尝试和业务失败要能区分。
+
+边界有判据。分层、状态、站点结构这类要求，都有对应的测试或启动期校验可以在 CI 中运行。
+
+\subsection*{\texorpdfstring{\textbf{1.2 系统功能概览}}{1.2 系统功能概览}}\label{ux6253ux5f00ux80fdux5e72ux4ec0ux4e48}
 \addcontentsline{toc}{subsection}{1.2 系统功能概览}
 
 系统分为管理端与前台两部分，管理端按角色动态显示菜单，逐页说明如下。
@@ -134,22 +122,20 @@
 
 前台阅读站展示已发布文章列表与详情，阅读量累加，支持按分类浏览。站内引导以右下角悬浮球形式，用自然语言提问即可返回可点击的页面卡片，并可跳转到对应页面。
 
-\subsection*{1.3 规模与交付形态}\label{ux89c4ux6a21ux4e0eux4ea4ux4ed8ux5f62ux6001}
+\subsection*{\texorpdfstring{\textbf{1.3 规模与交付形态}}{1.3 规模与交付形态}}\label{ux89c4ux6a21ux4e0eux4ea4ux4ed8ux5f62ux6001}
 \addcontentsline{toc}{subsection}{1.3 规模与交付形态}
 
-当前工程包含 105 个 Java 源文件、18 个前端 JavaScript 模块、13 个 Thymeleaf 模板和 8 张数据表。REST 接口共 50 个操作、37 条路径，以 OpenAPI 文件解析计数。单元测试共 38 个，分属 7 个测试类；权限点 15 个、角色 4 个。引导卡片 9 张，启动日志显示 9 张卡片、0 个未覆盖 Controller。
+Java 源文件共 105 个，用 find 命令对 src/main/java 统计。前端模块 17 个，对应 static/js 下的脚本文件。Thymeleaf 模板 13 个。数据表 8 张，其中 6 张主表加 2 张关联表。单元测试 38 个、分属 7 个测试类，mvn test 全部通过。权限点 15 个、角色 4 个。引导卡片 9 张，启动日志显示 9 张卡片、0 个未覆盖 Controller。
 
-\section*{二、需求分析}\label{ux4e8cux9700ux6c42ux5206ux6790}
+\section*{\texorpdfstring{\textbf{二、需求分析}}{二、需求分析}}\label{ux4e8cux9700ux6c42ux5206ux6790}
 \addcontentsline{toc}{section}{二、需求分析}
 
-
-
-\subsection*{2.1 业务背景与用户画像}\label{ux4e1aux52a1ux80ccux666fux4e0eux7528ux6237ux753bux50cf}
+\subsection*{\texorpdfstring{\textbf{2.1 业务背景与用户画像}}{2.1 业务背景与用户画像}}\label{ux4e1aux52a1ux80ccux666fux4e0eux7528ux6237ux753bux50cf}
 \addcontentsline{toc}{subsection}{2.1 业务背景与用户画像}
 
-系统围绕文章的编写、审核和阅读组织业务。作者需要保存和修改草稿，审核员需要确认内容是否适合发布，管理员负责账号、权限和分类维护，读者只查看已发布的文章。为避免未审核内容外发，编辑操作和发布操作需要区分权限；为防止误删，分类与文章之间的关联需要在删除时检查。
+内容是系统的核心资产，围绕一篇稿件从写下到被读到的完整链路，至少需要四类人参与：写稿的人、判断能不能发的人、维持秩序的人、以及只看结果的人。这四类人的诉求互相制约------写稿的人希望随时改，审核的人希望发出去的内容不能再被悄悄改动，管理员希望任何一次越权都留得下痕迹。需求分析的任务就是把这种制约写成规则，而不是留给实现时凭感觉决定。
 
-\subsection*{2.2 范围界定}\label{ux8303ux56f4ux754cux5b9a}
+\subsection*{\texorpdfstring{\textbf{2.2 范围界定}}{2.2 范围界定}}\label{ux8303ux56f4ux754cux5b9a}
 \addcontentsline{toc}{subsection}{2.2 范围界定}
 
 本项目包含用户管理、权限管控、内容分类、文章发布、内容审核、数据检索、日志记录和站内引导智能体八个部分。
@@ -158,16 +144,16 @@
 
 本项目不包含以下内容，明确划界，避免文档写得比代码多。
 
-富文本编辑器、附件与图片上传不在范围内，属于课程要求之外，敏感信息防护因此只落在文章保存链路，不假装支持上传管控。站内全文搜索不引入倒排索引，用 LIKE 满足课程数据量，性能取舍写入已知边界。多租户、消息通知、自定义审批流属于平台化能力，与本次考核点无关。分类不支持更换上级，保持 level 冗余字段一致性的成本高于收益，采用删除后重建的方式。
+富文本编辑器、附件与图片上传不在范围内，敏感信息防护因此只落在文章保存链路。站内全文搜索不引入倒排索引，用 LIKE 满足课程数据量。多租户、消息通知、自定义审批流属于平台化能力，与本次设计无关。分类不支持更换上级，保持 level 冗余字段一致性的成本高于收益，采用删除后重建的方式。
 
-\subsection*{2.3 角色定义}\label{ux89d2ux8272ux5b9aux4e49}
+\subsection*{\texorpdfstring{\textbf{2.3 角色定义}}{2.3 角色定义}}\label{ux89d2ux8272ux5b9aux4e49}
 \addcontentsline{toc}{subsection}{2.3 角色定义}
 
 系统分四个角色。游客编码 GUEST，只读浏览前台已发布文章，对应普通读者。作者编码 AUTHOR，撰写、修改自己的稿件并提交审核，对应编辑和记者。审核员编码 AUDITOR，负责审核稿件、发布与下架，对应内容主管。管理员编码 ADMIN，全面管理用户、角色、权限、分类与日志。
 
 一个用户可拥有多个角色，最终权限是所属全部角色权限的并集。注册用户默认分配 AUTHOR（RoleCode.DEFAULT）。
 
-\subsection*{2.4 权限点与权限矩阵}\label{ux6743ux9650ux70b9ux4e0eux6743ux9650ux77e9ux9635}
+\subsection*{\texorpdfstring{\textbf{2.4 权限点与权限矩阵}}{2.4 权限点与权限矩阵}}\label{ux6743ux9650ux70b9ux4e0eux6743ux9650ux77e9ux9635}
 \addcontentsline{toc}{subsection}{2.4 权限点与权限矩阵}
 
 权限点由初始化脚本写入，运行期只读，共 15 个：
@@ -216,7 +202,7 @@ guide:use & 使用站内引导 & ✓ & ✓ & ✓ & ✓ \\
 
 矩阵中的"✓/✗"与 sql/data.sql 的 sys\_role\_permission 插入语句一一对应，不是凭印象填写。管理员用 SELECT 4, id FROM sys\_permission 全量授权，新增权限点无需改脚本。
 
-\subsection*{2.5 核心业务场景}\label{ux6838ux5fc3ux4e1aux52a1ux573aux666f}
+\subsection*{\texorpdfstring{\textbf{2.5 核心业务场景}}{2.5 核心业务场景}}\label{ux6838ux5fc3ux4e1aux52a1ux573aux666f}
 \addcontentsline{toc}{subsection}{2.5 核心业务场景}
 
 以下七个场景是本次设计的验收范围。
@@ -235,7 +221,7 @@ guide:use & 使用站内引导 & ✓ & ✓ & ✓ & ✓ \\
 
 第七个场景是日志记录，由系统自动完成。每次写操作，系统记录操作人、动作、对象、脱敏后的参数、结果和耗时。输出是一条可查询的操作流水。价值在于出了问题能追溯到谁在什么时间做了什么，越权尝试也有据可查，既缩短排查时间，也形成威慑。
 
-\subsection*{2.6 业务规则与状态模型}\label{ux4e1aux52a1ux89c4ux5219ux4e0eux72b6ux6001ux6a21ux578b}
+\subsection*{\texorpdfstring{\textbf{2.6 业务规则与状态模型}}{2.6 业务规则与状态模型}}\label{ux4e1aux52a1ux89c4ux5219ux4e0eux72b6ux6001ux6a21ux578b}
 \addcontentsline{toc}{subsection}{2.6 业务规则与状态模型}
 
 文章共五个状态，七条合法迁移。
@@ -244,39 +230,35 @@ guide:use & 使用站内引导 & ✓ & ✓ & ✓ & ✓ \\
 
 表外迁移一律返回 409/40901。删除是状态机之外的独立规则：只有 DRAFT 与 REJECTED 可删。
 
-\subsection*{2.7 非功能需求}\label{ux975eux529fux80fdux9700ux6c42}
+\subsection*{\texorpdfstring{\textbf{2.7 非功能需求}}{2.7 非功能需求}}\label{ux975eux529fux80fdux9700ux6c42}
 \addcontentsline{toc}{subsection}{2.7 非功能需求}
 
 安全上，密码用 BCrypt 不可逆存储，通过排序白名单加 \#\{\} 预编译防 SQL 注入，双层权限防越权，敏感信息检测加日志打码防外泄。性能上，列表页不得出现 N+1，用三表 join 解决，分页插件限制单页最多 200 条。可维护性上，分层清晰、职责单一，四个业务模块配合 ModuleBoundaryTest 检查边界。可运维性上，异常有统一出口，行为可追溯，对应 GlobalExceptionHandler、LogAspect 与 traceId。兼容性上，中文与 emoji 不截断，采用 utf8mb4。
 
-\subsection*{2.8 需求跟踪矩阵（节选）}\label{ux9700ux6c42ux8ddfux8e2aux77e9ux9635ux8282ux9009}
+\subsection*{\texorpdfstring{\textbf{2.8 需求跟踪矩阵（节选）}}{2.8 需求跟踪矩阵（节选）}}\label{ux9700ux6c42ux8ddfux8e2aux77e9ux9635ux8282ux9009}
 \addcontentsline{toc}{subsection}{2.8 需求跟踪矩阵（节选）}
 
-注册、登录、退出由 AuthService 实现，接口在 /api/auth 下，实机联调验证。角色分配由 UserService 实现，接口是 PUT /api/users/\{id\}/roles，实机联调验证。接口级权限由 PermissionAspect 实现，覆盖所有受控接口，越权返回 40300。数据级权限由 checkOwner 实现，用于文章改删，越权返回 40301。三级分类由 CategoryService 实现，接口在 /api/categories 下，四级分类被拒返回 40001。文章状态机由 ArticleStateMachine 实现，接口在 /api/articles/\{id\} 下，单测 4 个用例。多维检索由 ArticleMapper.selectPageVO 实现，接口是 GET /api/articles，用 SQL 条数核对。操作日志由 LogAspect 实现，日志页可见 DENIED 记录。敏感信息拦截由 SensitiveInfoDetector 实现，接口是 POST /api/articles/sensitive-check，单测 9 个用例加浏览器实测。
+注册、登录、退出由 AuthService 实现，接口在 /api/auth 下，实机联调验证。角色分配由 UserService 实现，接口是 PUT /api/users/\{id\}/roles，实机联调验证。接口级权限由 PermissionAspect 实现，覆盖所有受控接口，越权返回 40300。数据级权限由 checkOwner 实现，用于文章改删，越权返回 40301。三级分类由 CategoryService 实现，接口在 /api/categories 下，四级分类被拒返回 40001。文章状态机由 ArticleStateMachine 实现，接口在 /api/articles/\{id\} 下，单测 4 个用例。多维检索由 ArticleMapper.selectPageVO 实现，接口是 GET /api/articles，用 SQL 条数核对。操作日志由 LogAspect 实现，日志页可见 DENIED 记录。敏感信息预检由 SensitiveInfoDetector 实现，接口是 POST /api/articles/sensitive-check，单测 9 个用例。文章越权防护由 ArticleProtectionTest 覆盖，单测 5 个用例。
 
-\section*{三、技术选型与依据}\label{ux4e09ux6280ux672fux9009ux578bux4e0eux4f9dux636e}
+\section*{\texorpdfstring{\textbf{三、技术选型与依据}}{三、技术选型与依据}}\label{ux4e09ux6280ux672fux9009ux578bux4e0eux4f9dux636e}
 \addcontentsline{toc}{section}{三、技术选型与依据}
 
-项目以 Java 11 为运行基准，采用 Spring Framework 5.3.31、Spring MVC 5.3.31 处理页面与接口请求，MyBatis-Plus 3.5.3.1 完成数据访问；工程不使用 Spring Boot，由外置 Tomcat 9 加载 WAR。该组合沿用 SSM 分层方式，便于在已有业务代码中组织权限校验、分页和统一异常处理。
+运行时选用 Java 11 加 Spring MVC 5.3.31。课程要求 SSM 整合，手动装配 Spring MVC 而不是依赖 Boot 自动配置，把精力放在 AOP、状态机这些考点上。不上 Spring 6 或 Boot 3，因为本机 JDK 11，Jakarta 包名迁移会连带改大量文档。部署于外置 Tomcat 9，用 Servlet 3 的 AbstractAnnotationConfigDispatcherServletInitializer 无 web.xml 启动。
 
-持久层保留 Mapper 与 XML：常规增删改查使用 MyBatis-Plus，文章列表等关联查询使用 XML 显式描述取数关系和筛选条件，便于检查所需字段和查询过程。
+持久层选用 MyBatis-Plus 3.5.3.1。分页、乐观锁、逻辑删除、自动填充都是插件级开关，通过 PersistenceConfig 手动装配 MybatisSqlSessionFactoryBean 而非 Boot 自动配置。不用 JPA，因为三表 join 加动态条件这类复杂列表 SQL 用 XML 写更直观，也避免隐式 N+1。
 
-前端采用 Thymeleaf 与原生 JavaScript 模块。页面由服务端渲染，筛选、弹窗和提交操作通过接口完成。当前方式便于课程项目部署，后续页面增加时仍需加强组件复用和前端测试。
+视图选用 Thymeleaf 加原生 ES Module。这样能讲清请求怎么进来、页面怎么渲染，无构建链，不存在打包产物与源码不一致的问题。不上 Vue 或 React，引入构建链后调试成本远大于收益。
 
-数据库设计面向 MySQL 8，使用 InnoDB 和 utf8mb4；原项目联调记录使用 MariaDB 10.6.23。部署环境与联调环境分别说明，避免将兼容性假设作为已验证结果。
+数据库选用 MySQL 8、InnoDB 引擎、utf8mb4 字符集。外键、事务、复合索引都是数据库层面的基础约束，utf8mb4 保证中文与 emoji 不截断。不用 H2 内存库，因为方言差异会造成本机通过而更换环境失败。
 
-身份认证使用 Session，权限检查由拦截器、AOP 和业务层共同完成。密码处理使用 spring-security-crypto 中的 BCryptPasswordEncoder；本项目未接入整套 Spring Security，鉴权流程由项目自身维护。
+密码存储选用 BCrypt，只引 spring-security-crypto 的加密模块。不引整套 Spring Security，因为后者会接管鉴权链路，与自定义拦截器和 AOP 冲突。不用 MD5，它不可逆的理由在演示时站不住脚。
 
-接口使用 OpenAPI 3.0 描述，并通过 Apifox 联调。现有方案手工维护接口文档，因此接口修改后需要同步核对路径、参数和响应结构。
+接口文档用 OpenAPI 3.0 手工维护，配合脚本对账。文档与代码分开，才有对账这个动作可展示。不用 springdoc 自动生成，自动生成的文档会掩盖接口改了而文档没改的问题。
 
-\section*{四、数据库架构设计}\label{ux56dbux6570ux636eux5e93ux67b6ux6784ux8bbeux8ba1}
+\section*{\texorpdfstring{\textbf{四、数据库架构设计}}{四、数据库架构设计}}\label{ux56dbux6570ux636eux5e93ux67b6ux6784ux8bbeux8ba1}
 \addcontentsline{toc}{section}{四、数据库架构设计}
 
-数据库需要同时支持账号授权、文章审核和操作追踪。用户、角色与权限负责回答“谁可以执行什么操作”；文章与分类负责组织内容；日志记录关键操作及其结果。项目因此设置六张实体表，并增加两张关联表维护用户与角色、角色与权限的多对多关系，共八张表。
-
-例如，一名用户可以兼任作者和审核员，一个角色也可以分配给多名用户，因此使用关联表保存授权关系。文章分别记录分类和作者，用于按分类检索和检查修改权限。日志保留操作人的可读信息，以便账号变动后仍能理解历史操作。
-
-\subsection*{4.1 sys\_user 用户表}\label{sys_user-ux7528ux6237ux8868}
+\subsection*{\texorpdfstring{\textbf{4.1 sys\_user 用户表}}{4.1 sys\_user 用户表}}\label{sys_user-ux7528ux6237ux8868}
 \addcontentsline{toc}{subsection}{4.1 sys\_user 用户表}
 
 \begin{longtable}[]{@{}
@@ -309,9 +291,10 @@ create\_time / update\_time & DATETIME & NOT NULL, 默认当前时间 / 自动�
 create\_by / update\_by & BIGINT & DEFAULT NULL & 操作人 \\
 \end{longtable}
 
-用户表保存登录账号和基本资料。username 设置唯一约束，用于防止重复注册；id 作为其他表引用用户的标识。status 表示账号是否启用，deleted 表示是否逻辑删除，两者分别对应停用和删除操作。密码字段保存 BCrypt 处理后的结果，不保存明文密码。创建、更新时间及操作人字段用于追踪记录变更。
+用户表是系统的身份锚点，所有认证和权限判定都从这里出发。主键采用自增 id，与业务字段 username 分离——username 是登录凭据，id 是稳定的内部引用，修改用户名不会波及所有关联表。username 设置唯一索引，注册时据此判断用户名是否已被占用。password 存储 BCrypt 加密结果，不存明文；实体类通过 @TableField(select=false) 屏蔽默认查询。status 取 1 启用、0 停用，停用账号在下次 HTTP 请求时被 LoginInterceptor 拦截。deleted 是逻辑删除标记，MyBatis-Plus 全局配置自动在所有查询中追加 deleted=0 条件，误删后可直接恢复。审计字段 createTime、updateTime、createBy、updateBy 由 MetaObjectHandler 统一填充，业务代码中不手写。索引 idx\_user\_status 覆盖按状态筛选用户的管理查询。
 
-\subsection*{4.2 sys\_role 角色表}\label{sys_role-ux89d2ux8272ux8868}
+
+\subsection*{\texorpdfstring{\textbf{4.2 sys\_role 角色表}}{4.2 sys\_role 角色表}}\label{sys_role-ux89d2ux8272ux8868}
 \addcontentsline{toc}{subsection}{4.2 sys\_role 角色表}
 
 \begin{longtable}[]{@{}
@@ -342,9 +325,10 @@ status & TINYINT & NOT NULL DEFAULT 1 & 启停 \\
 deleted 等审计字段 & --- & 同上 & --- \\
 \end{longtable}
 
-角色表把权限组合成可以分配给用户的集合，例如作者和审核员具有不同的操作范围。role\_code 用于程序识别角色，role\_name 用于界面展示，调整名称不需要改变权限判断。sort 控制显示顺序，status 控制角色的启停。
+角色表把角色编码和角色名称分开存储。判断权限时只看 role\_code，不看 role\_name——这样名称可以随时修改而不影响业务逻辑。整个系统一共有四个预置角色（GUEST、AUTHOR、AUDITOR、ADMIN），编码在 RoleCode 常量类里集中定义，与建表脚本中的数据一一对应。sort 控制角色列表的展示顺序，status 控制启用和停用，停用的角色无法分配给用户。
 
-\subsection*{4.3 sys\_permission 权限点表}\label{sys_permission-ux6743ux9650ux70b9ux8868}
+
+\subsection*{\texorpdfstring{\textbf{4.3 sys\_permission 权限点表}}{4.3 sys\_permission 权限点表}}\label{sys_permission-ux6743ux9650ux70b9ux8868}
 \addcontentsline{toc}{subsection}{4.3 sys\_permission 权限点表}
 
 \begin{longtable}[]{@{}
@@ -374,9 +358,10 @@ description & VARCHAR(200) & DEFAULT NULL & 说明 \\
 sort & INT & NOT NULL DEFAULT 100 & 组内排序 \\
 \end{longtable}
 
-权限点表示一项明确的操作能力，例如审核文章或管理用户。perm\_code 唯一，供权限注解和角色授权使用；perm\_name 与 perm\_group 用于管理页面展示和分组。权限点由初始化脚本维护，角色通过关联表获得权限，避免在每个用户记录上重复存储权限列表。
+权限点表由建表脚本的数据初始化，运行时只读，不进行增删改。这样设计是为了让启动期校验可以依赖一个稳定的权限码集合——站点地图在启动时检查每张卡片对应的权限码是否真实存在，如果权限点可以随时增删，这层校验就无法依赖了。perm\_group 把 15 个权限点（如 article:create、user:manage 等）归入五个分组，在前端角色管理页按组展示，管理员勾选授权一目了然。
 
-\subsection*{4.4 cms\_category 分类表}\label{cms_category-ux5206ux7c7bux8868}
+
+\subsection*{\texorpdfstring{\textbf{4.4 cms\_category 分类表}}{4.4 cms\_category 分类表}}\label{cms_category-ux5206ux7c7bux8868}
 \addcontentsline{toc}{subsection}{4.4 cms\_category 分类表}
 
 \begin{longtable}[]{@{}
@@ -408,11 +393,28 @@ description & VARCHAR(200) & DEFAULT NULL & 描述 \\
 deleted 等审计字段 & --- & 同上 & --- \\
 \end{longtable}
 
-分类通过 parent\_id 表示上下级关系，根分类使用 0，层级由服务端根据父节点计算，最多三级。同一父分类下的名称通过 parent\_id 与 name 的组合唯一约束限制，sort 用于调整同级显示顺序。
+分类自关联成树，最多三级，实例如下。
 
-当前设计没有为 parent\_id 建立自引用外键，父节点存在性和层级合法性由服务层检查。分类编辑不允许更换上级；删除前检查是否仍有子分类或文章引用，避免删除父分类后留下无法定位的子分类，或使文章失去有效分类。
+\begin{verbatim}
+根节点 parent_id = 0，树最多三级
 
-\subsection*{4.5 cms\_article 文章表}\label{cms_article-ux6587ux7ae0ux8868}
+技术文章
+|-- 后端开发
+|   `-- Spring MVC 实战
+|-- 前端开发
+|   `-- Vue 入门
+`-- 数据库
+
+生活随笔
+`-- 旅行见闻
+
+官方公告
+\end{verbatim}
+
+分类表用 parent\_id 自关联实现三级树，parent\_id 为 0 表示根分类。这里有一个容易忽略的选择：为什么用 0 而不是 NULL 表示根？因为 MySQL 的唯一索引对 NULL 不参与去重——如果根分类的 parent\_id 用 NULL，就可以创建多个同名的根分类而不会被唯一键拦截。用 0 代替 NULL 后，uk\_category\_parent\_name 可以同时覆盖根级和子级两个层面。代价是没法在 parent\_id 上建自引用外键，但树的完整性靠服务端循环检测补齐（新增分类时检查 parent 链是否到达自己），这个代价是可以接受的。level 字段显式存储层级值，由服务端根据父分类推导，不信任客户端传入，保证层级计数值不被绕过。索引 idx\_category\_parent 覆盖 parent\_id + sort，按父分类取子分类并排序只需一次索引查找。
+
+
+\subsection*{\texorpdfstring{\textbf{4.5 cms\_article 文章表}}{4.5 cms\_article 文章表}}\label{cms_article-ux6587ux7ae0ux8868}
 \addcontentsline{toc}{subsection}{4.5 cms\_article 文章表}
 
 \begin{longtable}[]{@{}
@@ -450,6 +452,8 @@ version & INT & NOT NULL DEFAULT 0 & 乐观锁版本号 \\
 deleted 等审计字段 & --- & 同上 & --- \\
 \end{longtable}
 
+索引与用途：
+
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.6296}}
   >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.3704}}@{}}
@@ -469,11 +473,12 @@ idx\_article\_title(title) & 标题前缀匹配 \\
 idx\_article\_publish(publish\_time) & 前台按发布时间倒序 \\
 \end{longtable}
 
-文章通过 category\_id 关联分类，通过 author\_id 关联作者，两列设置外键，约束引用对象的存在性。auditor\_id 记录最后审核人，采用弱引用；审核时间、意见和发布时间记录相应业务节点。
+文章表是系统的核心业务表，承载从草稿到发布的完整生命周期。category\_id 和 author\_id 都建了外键，因为文章不能脱离分类和作者独立存在——这两条外键既是约束也是文档，读建表语句就知道文章必须挂分类、必须由某人撰写。auditor\_id 没有建外键，因为审核员可能在之后被删除，而文章需要保留谁审过的记录，弱引用比外键更适合这种松散关系。status 字段直接用 VARCHAR 存 DRAFT、PENDING 等枚举字面值，而不是建一张状态字典表。文章的五种状态由 ArticleStateMachine 的静态迁移表定义，新增状态需要改代码中的枚举和迁移矩阵，不会出现字典表里多了一个没有代码支持的状态。version 字段配合 @Version 注解实现乐观锁，两个用户同时编辑同一篇草稿时，后提交者会收到版本冲突的错误码 40900。
 
-status 保存草稿、待审核、已发布、被驳回、已下架五种状态，允许的迁移由业务层统一控制。version 用于检测编辑时的版本冲突。列表相关索引按分类、状态、作者及时间等查询条件设置，实际使用效果需要结合执行计划验证。
+文章表建立了四条索引。idx\_article\_query(status, category\_id, create\_time) 是列表页的核心索引，覆盖按状态和分类筛选再按创建时间倒序排列的查询。idx\_article\_author(author\_id, status) 覆盖"我的稿件"和按作者统计。idx\_article\_title(title) 为标题前缀查询服务，但在 LIKE 模糊搜索（两侧都有通配符）时用不上——这是故意保留的取舍，正文 8.3 节用 EXPLAIN 对比了前缀匹配与全模糊匹配对索引的使用差异。idx\_article\_publish(publish\_time) 覆盖前台按发布时间倒序展示已发布文章。
 
-\subsection*{4.6 sys\_log 操作日志表}\label{sys_log-ux64cdux4f5cux65e5ux5fd7ux8868}
+
+\subsection*{\texorpdfstring{\textbf{4.6 sys\_log 操作日志表}}{4.6 sys\_log 操作日志表}}\label{sys_log-ux64cdux4f5cux65e5ux5fd7ux8868}
 \addcontentsline{toc}{subsection}{4.6 sys\_log 操作日志表}
 
 \begin{longtable}[]{@{}
@@ -502,16 +507,20 @@ log\_type & VARCHAR(20) & NOT NULL & LOGIN / ARTICLE / AUDIT / CATEGORY / USER /
 operation & VARCHAR(100) & NOT NULL & 可读操作名 \\
 method & VARCHAR(200) & DEFAULT NULL & 类名\#方法名 \\
 uri / http\_method & VARCHAR(200) / VARCHAR(10) & DEFAULT NULL & 请求信息 \\
-params & VARCHAR(2000) & DEFAULT NULL & 脱敏后入参 \\
+params & VARCHAR(2000) & DEFAULT NULL & 脱敏后的入参 \\
 ip & VARCHAR(64) & DEFAULT NULL & 来源 IP \\
 result & VARCHAR(20) & NOT NULL & SUCCESS / DENIED / FAIL \\
 error\_msg & VARCHAR(400) & DEFAULT NULL & 失败原因 \\
+trace\_id & VARCHAR(32) & DEFAULT NULL & 请求追踪 ID，对应响应中的 traceId \\
 cost\_ms & BIGINT & DEFAULT NULL & 耗时 \\
 \end{longtable}
 
-日志需要在账号停用或删除后仍可读，因此 user\_id 不设置外键，并同时保存 username。result 区分成功、权限拒绝和执行失败，便于查询不同类型的问题；params 保存脱敏后的请求参数，cost\_ms 记录耗时。日志表用于追踪操作，不代替业务表保存文章的当前状态。
+日志表的设计围绕一个前提：审计记录的声明周期必须长于被审计的业务数据。user\_id 不建外键就是基于这一点——操作日志需要保留比用户账号更久，不能因为用户被删除就跟着级联清除。同时 username 冗余存一份，即使操作人的账号已不在用户表中，日志也能通过用户名提供可读线索。result 字段区分三类结果：SUCCESS 表示正常执行，DENIED 表示请求被权限切面拦截（越权尝试），FAIL 表示业务处理期间发生异常。这三类的区分让"哪些越权行为曾被尝试过"可以在日志页直接筛选出来，而不需要从大量的 SUCCESS 记录中人工判断。params 字段存入的是经过 MaskUtil 脱敏后的请求参数，password、token 等敏感字段在落库前已替换为 ***。trace\_id 与 HTTP 响应头中的 traceId 一一对应，用户报障时可凭它在服务端日志中定位到该次请求的完整链路。
 
-\subsection*{4.7 两张关联表}\label{ux4e24ux5f20ux5173ux8054ux8868}
+日志表有三条索引。idx\_log\_time(create\_time) 覆盖按时间范围查询（日志页的默认视图）。idx\_log\_user(user\_id) 覆盖按操作人筛选。idx\_log\_type(log\_type, create\_time) 覆盖按类型加时间组合查询（如筛选所有 DENIED 记录）。
+
+
+\subsection*{\texorpdfstring{\textbf{4.7 两张关联表}}{4.7 两张关联表}}\label{ux4e24ux5f20ux5173ux8054ux8868}
 \addcontentsline{toc}{subsection}{4.7 两张关联表}
 
 \begin{longtable}[]{@{}
@@ -540,30 +549,27 @@ sys\_user\_role & 联合 PK (user\_id, role\_id) & fk\_ur\_user、fk\_ur\_role &
 sys\_role\_permission & 联合 PK (role\_id, perm\_id) & 双向 FK & idx\_rp\_perm(perm\_id) & 角色-权限多对多 \\
 \end{longtable}
 
-sys\_user\_role 记录用户与角色的对应关系，sys\_role\_permission 记录角色与权限点的对应关系。两张表分别使用两个关联字段组成联合主键，防止重复分配同一个角色或权限。关联记录删除表示解除授权，不采用逻辑删除；反向索引用于按角色查找用户或按权限点查找角色。
+两张关联表均采用联合主键，不使用自增 id。以 sys\_user\_role 为例，联合主键 (user\_id, role\_id) 本身就是唯一约束——对同一个用户重复授权同一个角色，INSERT 会直接触发主键冲突，数据库层面兜底。同时，按 user\_id 查该用户的全部角色可以走主键的最左前缀，不需要额外索引；附加索引 idx\_ur\_role(role\_id) 则覆盖反向查询——按 role\_id 列出拥有该角色的所有用户，用于删除角色前的引用检查。sys\_role\_permission 使用相同的设计，两表都有双向外键保证引用的数据不被单独删除。
 
-\subsection*{4.8 关联约束与索引设计}\label{ux7ea6ux675fux89c4ux8303ux6c47ux603b}
-\addcontentsline{toc}{subsection}{4.8 关联约束与索引设计}
 
-数据库约束与业务检查承担不同职责。主键唯一标识记录，唯一约束限制重复账号和重复授权，外键检查文章引用的分类、作者是否存在；业务层还需检查文章状态、操作者权限以及分类能否删除。
+\subsection*{\texorpdfstring{\textbf{4.8 六表关联与约束规范}}{4.8 六表关联与约束规范}}\label{ux7ea6ux675fux89c4ux8303ux6c47ux603b}
+\addcontentsline{toc}{subsection}{4.8 六表关联与约束规范}
 
-例如，分类记录仍存在并不代表它可以删除。删除操作必须先确认没有子分类和引用文章，再执行逻辑删除。逻辑删除仅保留底层记录，不等于系统已经提供恢复功能；恢复前仍需处理名称冲突、引用关系和权限等问题。
+六张主表和两张关联表形成如下关系：sys\_user 和 sys\_role 通过 sys\_user\_role 建立多对多关联，sys\_role 和 sys\_permission 通过 sys\_role\_permission 建立多对多关联。一次权限判断需要穿越这四张表——从当前用户找到其所有角色，再从角色找到所有权限点，缺任何一张表都无法完成判断。cms\_article 分别通过外键连接到 cms\_category（文章属于哪个分类）和 sys\_user（文章由谁撰写、由谁审核），前台文章列表从这三张表中一次取出完整信息。cms\_category 通过 parent\_id 自关联形成树形结构，三级深度由服务端推导 level 值控制。sys\_log 以弱引用指向 sys\_user，不与任何用户账号直接绑定，确保日志生命周期独立于业务数据。
 
-索引根据常用查询设置：文章列表关注分类、状态、作者和时间，分类树关注父节点与同级排序，日志关注类型与时间。索引是否被使用、是否减少扫描，需要以执行计划和实际数据验证。
+所有表的共约束是：主表用自增 id 做主键，业务键与主键分离，业务键的变更不牵动外键体系。关联表用联合主键取代自增 id，使数据库在插入层面即能拒绝重复关联。必填列全部设定 NOT NULL 和默认值，避免 NULL 比较的语义陷阱。除 sys\_permission 外所有表均支持逻辑删除（deleted 字段）。所有表的字符集统一为 utf8mb4，确保中文内容与 emoji 字符不截断。每条索引的建立都对应一个可枚举的具体查询路径，不加"以防万一"的冗余索引。
 
-\subsection*{4.9 数据库 E-R 图}\label{ux6570ux636eux5e93-e-r-ux56fe}
+\subsection*{\texorpdfstring{\textbf{4.9 数据库 E-R 图}}{4.9 数据库 E-R 图}}\label{ux6570ux636eux5e93-e-r-ux56fe}
 \addcontentsline{toc}{subsection}{4.9 数据库 E-R 图}
 
 \includegraphics[width=\linewidth]{media/image1.png}
 
 数据库 E-R 图（8 张表，标注主键 PK / 唯一键 UK / 外键 FK）
 
-\section*{五、系统设计图}\label{ux4e94ux7cfbux7edfux8bbeux8ba1ux56fe}
+\section*{\texorpdfstring{\textbf{五、系统设计图}}{五、系统设计图}}\label{ux4e94ux7cfbux7edfux8bbeux8ba1ux56fe}
 \addcontentsline{toc}{section}{五、系统设计图}
 
-
-
-\subsection*{5.1 分层架构}\label{ux5206ux5c42ux67b6ux6784}
+\subsection*{\texorpdfstring{\textbf{5.1 分层架构}}{5.1 分层架构}}\label{ux5206ux5c42ux67b6ux6784}
 \addcontentsline{toc}{subsection}{5.1 分层架构}
 
 \includegraphics[width=\linewidth]{media/image2.png}
@@ -572,14 +578,14 @@ sys\_user\_role 记录用户与角色的对应关系，sys\_role\_permission 记
 
 系统自上而下分为五层，依次是接入层、控制层、业务层、持久层和数据层。接入层由 Interceptor 和页面控制器构成，控制层负责参数校验与权限注解，业务层处理事务与业务规则，持久层是 Mapper 加 XML，数据层是 MySQL。横切关注点由 AOP 承担。LogAspect 在最外层，即 @Order(1)，PermissionAspect 在其内层，即 @Order(2)。因此被 403 拦下的请求仍会被日志切面看到，越权必须留痕，这个顺序本身就是一条设计决策。
 
-\subsection*{5.2 总体业务流程}\label{ux603bux4f53ux4e1aux52a1ux6d41ux7a0b}
+\subsection*{\texorpdfstring{\textbf{5.2 总体业务流程}}{5.2 总体业务流程}}\label{ux603bux4f53ux4e1aux52a1ux6d41ux7a0b}
 \addcontentsline{toc}{subsection}{5.2 总体业务流程}
 
 \includegraphics[width=\linewidth]{media/image3.png}
 
 总体业务流程图
 
-\subsection*{5.3 文章状态机}\label{ux6587ux7ae0ux72b6ux6001ux673a}
+\subsection*{\texorpdfstring{\textbf{5.3 文章状态机}}{5.3 文章状态机}}\label{ux6587ux7ae0ux72b6ux6001ux673a}
 \addcontentsline{toc}{subsection}{5.3 文章状态机}
 
 \includegraphics[width=\linewidth]{media/image4.png}
@@ -588,7 +594,7 @@ sys\_user\_role 记录用户与角色的对应关系，sys\_role\_permission 记
 
 状态机是\textbf{代码里的显式表}（ArticleStateMachine），不是散落在各 Service 里的 if。next(当前状态, 动作) 查不到边就抛 BizException(INVALID\_STATE)，异常文案同时带出"当前状态"与"被拒绝的动作"。
 
-\subsection*{5.4 站内引导时序}\label{ux7ad9ux5185ux5f15ux5bfcux65f6ux5e8f}
+\subsection*{\texorpdfstring{\textbf{5.4 站内引导时序}}{5.4 站内引导时序}}\label{ux7ad9ux5185ux5f15ux5bfcux65f6ux5e8f}
 \addcontentsline{toc}{subsection}{5.4 站内引导时序}
 
 \includegraphics[width=\linewidth]{media/image5.png}
@@ -597,12 +603,10 @@ sys\_user\_role 记录用户与角色的对应关系，sys\_role\_permission 记
 
 一次提问的路径：前端 → GuideController.chat → IntentRouter（规则层）命中则直接返回卡片 → 未命中且模型通道开启时，把候选卡片摘要发给模型 → 模型只回卡片 id → 服务端校验 id ∈ 站点地图 → 返回渲染。
 
-\section*{六、工程结构标准化}\label{ux516dux5de5ux7a0bux7ed3ux6784ux6807ux51c6ux5316}
+\section*{\texorpdfstring{\textbf{六、工程结构标准化}}{六、工程结构标准化}}\label{ux516dux5de5ux7a0bux7ed3ux6784ux6807ux51c6ux5316}
 \addcontentsline{toc}{section}{六、工程结构标准化}
 
-
-
-\subsection*{6.1 目录分层}\label{ux76eeux5f55ux5206ux5c42}
+\subsection*{\texorpdfstring{\textbf{6.1 目录分层}}{6.1 目录分层}}\label{ux76eeux5f55ux5206ux5c42}
 \addcontentsline{toc}{subsection}{6.1 目录分层}
 
 \begin{verbatim}
@@ -633,31 +637,47 @@ src/main/java/com/ylf/cms/
   `- static/{css,js/}
 \end{verbatim}
 
-\subsection*{6.2 模块职责}\label{ux6a21ux5757ux804cux8d23}
+\subsection*{\texorpdfstring{\textbf{6.2 模块职责}}{6.2 模块职责}}\label{ux6a21ux5757ux804cux8d23}
 \addcontentsline{toc}{subsection}{6.2 模块职责}
 
-security 模块负责注册登录、会话、权限判定与越权判定，可被其他模块引用其 service、dto、vo。content 模块负责文章生命周期、检索、批量与敏感信息，依赖 security 的 LoginUser。catalog 模块负责分类树与前台阅读站，依赖 content 展示文章。ops 模块负责操作日志与站内引导，读其他模块的 service，不读其 mapper。
+security 模块负责注册、登录、会话、权限判定与越权判定。content 模块负责文章全生命周期、检索、批量操作与敏感信息检测。catalog 模块负责分类树与前台阅读站。ops 模块负责操作日志与站内引导智能体。各模块之间通过 service 接口协作，不跨模块引用 mapper、entity 或 controller。
 
-\subsection*{6.3 模块边界检查}\label{ux8fb9ux754cux5224ux636e}
-\addcontentsline{toc}{subsection}{6.3 模块边界检查}
+\subsection*{\texorpdfstring{\textbf{6.3 边界判据}}{6.3 边界判据}}\label{ux8fb9ux754cux5224ux636e}
+\addcontentsline{toc}{subsection}{6.3 边界判据}
 
-项目通过 ModuleBoundaryTest 扫描源码中的 import，检查业务模块是否跨层引用其他模块的 Mapper、实体、控制器或配置类，公共交互按约定经过 service、dto 和 vo。
+四个模块职责单一写在文档里，没人违反，也没人遵守。所以它被写成测试。ModuleBoundaryTest 扫描全部源文件的 import，禁止跨模块引用 mapper、entity、controller、config，只允许 service、dto、vo。
 
-原测试曾因包路径层级判断错误，未识别 security.user.mapper 中的越界引用。定位问题后调整了路径解析，并加入违规引用验证检测是否生效。边界测试本身也需要反例，测试通过只能说明已覆盖的检查项满足要求。
+这个测试第一次跑就是绿的，但它是假通过。往 ArticleService 里加入一条越界 import，测试照样通过。原因是判据把包位置写死在 import 的第二段，即 com.ylf.cms.模块.包，而实际路径是 security.user.mapper，mapper 在第三段。改判据后立刻变红。这件事说明，绿色可能是判据没有覆盖到真正的越界，只有主动注入才能发现。
 
-\section*{七、基础核心功能}\label{ux4e03ux529fux80fdux5b9eux73b0ux8be6ux89e3}
-\addcontentsline{toc}{section}{七、基础核心功能}
+\section*{\texorpdfstring{\textbf{七、功能实现详解}}{七、功能实现详解}}\label{ux4e03ux529fux80fdux5b9eux73b0ux8be6ux89e3}
+\addcontentsline{toc}{section}{七、功能实现详解}
 
+\subsection*{\texorpdfstring{\textbf{7.1 用户与权限管理}}{7.1 用户与权限管理}}\label{ux7528ux6237ux6743ux9650ux7ba1ux7406}
+\addcontentsline{toc}{subsection}{7.1 用户与权限管理}
 
+\subsubsection*{\texorpdfstring{\textbf{使用流程}}{使用流程}}\label{sec:user-flow}
+\addcontentsline{toc}{subsubsection}{使用流程}
 
-\subsection*{7.1 用户权限管理}\label{ux7528ux6237ux6743ux9650ux7ba1ux7406}
-\addcontentsline{toc}{subsection}{7.1 用户权限管理}
+用户打开系统后首先看到登录页，输入账号名和密码点击"登录"按钮。系统校验账号存在、密码匹配且状态为启用后，将角色和权限信息写入 Session 并跳转到工作台。未注册的用户先点击登录页上的"注册"链接，填写用户名（4--20 位字母、数字或下划线）、密码（6--32 位）、昵称和邮箱后提交，系统会验证用户名是否已被占用，通过后自动分配作者角色并跳回登录页。工作台顶部显示当前登录身份，右上角"退出"按钮点击后销毁 Session 并回到登录页。管理员可进入"用户管理"页新增、修改、启停或删除账号，进入"角色管理"页给角色勾选权限点并保存。每个用户可拥有多个角色，最终权限是全部角色权限的并集。
 
-账号全生命周期与权限控制分注册、登录、退出、角色分配、AOP 权限校验五部分，各部分功能截屏如下。
+\includegraphics[width=\linewidth]{media/image17.png}
 
-本模块涉及认证、用户、角色三组接口，接口名称与功能说明如下表。
+登录页：输入用户名 admin、密码 123456，点击"登录"按钮
 
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{8.4cm}>{\raggedright\arraybackslash}p{4.4cm}@{}}
+\includegraphics[width=\linewidth]{media/image16.png}
+
+注册页：填写四项信息后点击"注册"，成功则跳回登录页
+
+\includegraphics[width=\linewidth]{media/image19.png}
+
+角色管理页：左侧选中角色，右侧勾选权限点，点击"保存权限"
+
+\subsubsection*{\texorpdfstring{\textbf{实现逻辑}}{实现逻辑}}\label{sec:user-impl}
+\addcontentsline{toc}{subsubsection}{实现逻辑}
+
+本模块涉及认证、用户、角色三组接口：
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{5.8cm}>{\raggedright\arraybackslash}p{7.0cm}@{}}
 \toprule
 \textbf{接口名称} & \textbf{功能说明} \\
 \midrule
@@ -669,308 +689,54 @@ security 模块负责注册登录、会话、权限判定与越权判定，可�
 \endhead
 \multicolumn{2}{@{}l}{\textbf{认证} \quad /api/auth} \\
 \midrule
-POST /api/auth/register & 注册账号，默认挂 AUTHOR 角色 \\
-POST /api/auth/login & 登录系统，返回角色与权限 \\
-POST /api/auth/logout & 退出登录，销毁 Session \\
-GET /api/auth/me & 查询当前用户及权限 \\
+POST /api/auth/register & 校验注册信息，创建用户并分配 AUTHOR 角色 \\
+POST /api/auth/login & 比对 BCrypt 密码，写入 Session 并返回角色与权限 \\
+POST /api/auth/logout & 销毁 Session \\
+GET /api/auth/me & 读取当前登录用户及权限集合 \\
 \multicolumn{2}{@{}l}{\textbf{用户} \quad /api/users} \\
 \midrule
-GET /api/users & 分页查询用户 \\
-GET /api/users/\{id\} & 查询用户详情 \\
-POST /api/users & 新增用户 \\
-PUT /api/users/\{id\} & 修改用户资料 \\
-PUT /api/users/\{id\}/status & 启用或停用用户 \\
-PUT /api/users/\{id\}/roles & 分配用户角色 \\
-DELETE /api/users/\{id\} & 删除用户 \\
+GET /api/users & 分页查询用户列表，支持按状态和关键词筛选 \\
+POST /api/users & 新增用户，保存 BCrypt 加密的密码 \\
+PUT /api/users/\{id\} & 修改用户昵称、邮箱、手机号，密码留空则不改 \\
+PUT /api/users/\{id\}/status & 启用或停用用户，停用后下次请求被拦截 \\
+PUT /api/users/\{id\}/roles & 全量覆盖用户角色列表 \\
+DELETE /api/users/\{id\} & 删除用户，检查名下是否有稿件，有则拒绝 \\
 \multicolumn{2}{@{}l}{\textbf{角色} \quad /api/roles} \\
 \midrule
-GET /api/roles & 查询角色列表 \\
-GET /api/roles/permissions & 查询全部权限点 \\
+GET /api/roles & 查询全部角色列表 \\
 POST /api/roles & 新增角色 \\
-PUT /api/roles/\{id\} & 修改角色 \\
-PUT /api/roles/\{id\}/permissions & 分配角色权限 \\
-DELETE /api/roles/\{id\} & 删除角色 \\
+PUT /api/roles/\{id\}/permissions & 全量覆盖角色权限点 \\
+DELETE /api/roles/\{id\} & 删除角色，禁止删除 ADMIN 角色 \\
 \bottomrule
 \end{longtable}
 
-请求数据结构（DTO）直接取自代码：注册用 RegisterRequest，用户管理用 UserSaveRequest。
+关键 DTO 结构取自代码：
 
 \begin{verbatim}
 public class RegisterRequest {
     @NotBlank(message = "用户名不能为空")
-    @Pattern(regexp = "^[a-zA-Z0-9_]{4,20}$", message = "用户名为 4-20 位字母、数字或下划线")
+    @Pattern(regexp = "^[a-zA-Z0-9_]{4,20}$")
     private String username;
-
-    @NotBlank(message = "密码不能为空")
-    @Size(min = 6, max = 32, message = "密码长度 6-32 位")
+    @NotBlank @Size(min = 6, max = 32)
     private String password;
-
-    @NotBlank(message = "昵称不能为空")
-    @Size(max = 50, message = "昵称最长 50 字")
+    @NotBlank @Size(max = 50)
     private String nickname;
-
-    @Email(message = "邮箱格式不正确")
+    @Email
     private String email;
 }
-\end{verbatim}
 
-\begin{verbatim}
 public class UserSaveRequest {
-    @Pattern(regexp = "^[a-zA-Z0-9_]{4,20}$", message = "用户名为 4-20 位字母、数字或下划线")
-    private String username;   // 新增必填，修改时忽略
-
-    @Size(min = 6, max = 32, message = "密码长度 6-32 位")
-    private String password;   // 修改时留空表示不改密码
-
-    @NotBlank(message = "昵称不能为空")
-    private String nickname;
-
-    @Email(message = "邮箱格式不正确")
-    private String email;
-
+    @Pattern(regexp = "^[a-zA-Z0-9_]{4,20}$")
+    private String username;    // 新增必填，修改时忽略
+    @Size(min = 6, max = 32)
+    private String password;    // 留空表示不改密码
+    @NotBlank private String nickname;
+    @Email private String email;
     private List<Long> roleIds;
 }
 \end{verbatim}
 
-登录处理流程如下。
-
-\begin{center}
-\begin{tikzpicture}[
-  node distance=5mm,
-  box/.style={rectangle, draw, rounded corners=1pt, align=center, minimum width=5.4cm, minimum height=0.72cm, font=\small},
-  arr/.style={-{Stealth}}
-]
-\node[box] (a) {POST /api/auth/login 收到登录请求};
-\node[box, below=of a] (b) {查用户、比对 BCrypt 密码、校验 status=1};
-\node[box, below=of b] (c) {装配角色集合与权限集合到 LoginUser};
-\node[box, below=of c] (d) {写入 Session，返回当前用户};
-\draw[arr] (a) -- (b);
-\draw[arr] (b) -- (c);
-\draw[arr] (c) -- (d);
-\end{tikzpicture}
-\end{center}
-
-\subsubsection*{7.1.1 注册}\label{sec:reg}
-\addcontentsline{toc}{subsubsection}{7.1.1 注册}
-
-注册时，RegisterRequest 用 @Valid 校验用户名格式、密码长度和邮箱格式。用户名重复先查一次，并发下由唯一索引兜底。密码用 BCryptPasswordEncoder 加密。插入后自动挂上 RoleCode.DEFAULT，即 AUTHOR 角色。
-
-\includegraphics[width=\linewidth]{media/image16.png}
-
-\subsubsection*{7.1.2 登录}\label{sec:login}
-\addcontentsline{toc}{subsubsection}{7.1.2 登录}
-
-登录时校验用户存在、密码匹配、status 为 1，然后把角色集合与权限集合装配进 LoginUser 存入 Session。权限在登录时一次性算好，请求期间不再查库。密码错误与用户不存在返回同一错误码 40101，避免账号枚举。
-
-\includegraphics[width=\linewidth]{media/image17.png}
-
-\subsubsection*{7.1.3 退出}\label{sec:logout}
-\addcontentsline{toc}{subsubsection}{7.1.3 退出}
-
-退出时调用 session.invalidate()，返回统一的 Result 结果。
-
-\includegraphics[width=\linewidth]{media/image18.png}
-
-\subsubsection*{7.1.4 角色分配}\label{sec:role}
-\addcontentsline{toc}{subsubsection}{7.1.4 角色分配}
-
-角色分配由 PUT /api/users/\{id\}/roles 完成，全量覆盖用户的角色列表，管理员可随时调整。角色的权限点由 PUT /api/roles/\{id\}/permissions 全量覆盖式保存。
-
-\includegraphics[width=\linewidth]{media/image19.png}
-
-\subsubsection*{7.1.5 AOP 权限校验}\label{sec:aop}
-\addcontentsline{toc}{subsubsection}{7.1.5 AOP 权限校验}
-
-接口级权限由控制器方法标注 @RequirePermission(Perm.ARTICLE\_AUDIT) 实现。切面读取注解并与权限集合比对，支持 ANY 和 ALL 两种逻辑，ANY 是默认值，任一命中即通过，ALL 要求全部命中。判断逻辑如下：
-
-boolean allowed = requirePermission.logic() == RequirePermission.Logic.ALL\\
-? Arrays.stream(codes).allMatch(user::hasPermission)\\
-: user.hasAnyPermission(codes);\\
-if (!allowed) \{\\
-throw new BizException(ResultCode.FORBIDDEN, "缺少权限：" + String.join(" 或 ", codes));\\
-\}
-
-数据级权限解决接口级权限回答不了的问题。接口级只能回答这个角色能不能调这个接口，而作者 A 能不能改作者 B 的稿是数据级问题。数据级判断在 Service 里用 checkOwner 完成，有 :any 权限直接放行，否则必须满足 article.authorId 等于当前用户 id，不满足返回 403 和 40301。两层分工是刻意的。只用 AOP 拿不到数据行，只在 Service 判断则每个接口都要重复写。
-
-\includegraphics[width=\linewidth]{media/image20.png}
-
-\subsection*{7.2 内容分类管理}\label{ux5185ux5bb9ux5206ux7c7bux7ba1ux7406}
-\addcontentsline{toc}{subsection}{7.2 内容分类管理}
-
-分类层级用 level 字段显式存储，查树按 parent\_id 逐层展开，不做递归查库。level 由服务端根据父节点推导，不信任客户端传入。以下按新增、编辑、排序、删除、状态启停、分类与内容关联绑定分述。
-
-本模块涉及分类与前台两组接口，接口名称与功能说明如下表。
-
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{8.4cm}>{\raggedright\arraybackslash}p{4.4cm}@{}}
-\toprule
-\textbf{接口名称} & \textbf{功能说明} \\
-\midrule
-\endfirsthead
-\multicolumn{2}{@{}l}{\small（续表）}\\
-\toprule
-\textbf{接口名称} & \textbf{功能说明} \\
-\midrule
-\endhead
-\multicolumn{2}{@{}l}{\textbf{分类} \quad /api/categories} \\
-\midrule
-GET /api/categories/tree & 查询分类树 \\
-GET /api/categories & 查询分类列表 \\
-POST /api/categories & 新增分类 \\
-PUT /api/categories/\{id\} & 修改分类 \\
-PUT /api/categories/\{id\}/status & 启用或停用分类 \\
-DELETE /api/categories/\{id\} & 删除分类 \\
-\multicolumn{2}{@{}l}{\textbf{前台（免登录）} \quad /api/portal} \\
-\midrule
-GET /api/portal/articles & 查询前台已发布文章 \\
-GET /api/portal/articles/\{id\} & 查询前台文章正文 \\
-GET /api/portal/categories & 查询前台启用分类树 \\
-\bottomrule
-\end{longtable}
-
-请求数据结构（DTO）直接取自代码。
-
-\begin{verbatim}
-public class CategorySaveRequest {
-    private Long parentId;     // 0 表示根节点
-
-    @NotBlank(message = "分类名称不能为空")
-    @Size(max = 50, message = "分类名称最长 50 字")
-    private String name;
-
-    private Integer sort;
-
-    @NotNull(message = "状态不能为空")
-    private Integer status;
-}
-\end{verbatim}
-
-分类新增处理流程如下。
-
-\begin{center}
-\begin{tikzpicture}[
-  node distance=5mm,
-  box/.style={rectangle, draw, rounded corners=1pt, align=center, minimum width=5.6cm, minimum height=0.72cm, font=\small},
-  arr/.style={-{Stealth}}
-]
-\node[box] (a) {POST /api/categories 收到新增请求};
-\node[box, below=of a] (b) {@Valid 校验名称与状态};
-\node[box, below=of b] (c) {按父节点推导 level，检查层级上限};
-\node[box, below=of c] (d) {唯一索引 uk\_category\_parent\_name 兜底重名};
-\node[box, below=of d] (e) {入库并返回分类 id};
-\draw[arr] (a) -- (b);
-\draw[arr] (b) -- (c);
-\draw[arr] (c) -- (d);
-\draw[arr] (d) -- (e);
-\end{tikzpicture}
-\end{center}
-
-\subsubsection*{7.2.1 分类新增}\label{sec:cate-add}
-\addcontentsline{toc}{subsubsection}{7.2.1 分类新增}
-
-新增分类时，同级重名由 uk\_category\_parent\_name 兜底，服务层把唯一键冲突翻译成 40902。
-
-\includegraphics[width=\linewidth]{media/image21.png}
-
-\subsubsection*{7.2.2 分类编辑}\label{sec:cate-edit}
-\addcontentsline{toc}{subsubsection}{7.2.2 分类编辑}
-
-编辑时接口忽略 parentId，不支持更换上级，避免 level 冗余字段的级联更新。
-
-\includegraphics[width=\linewidth]{media/image22.png}
-
-\subsubsection*{7.2.3 分类排序}\label{sec:cate-sort}
-\addcontentsline{toc}{subsubsection}{7.2.3 分类排序}
-
-排序使用 sort 字段在同级内排序，列表按 sort ASC 加 id ASC 保证稳定。
-
-\includegraphics[width=\linewidth]{media/image23.png}
-
-\subsubsection*{7.2.4 分类删除}\label{sec:cate-del}
-\addcontentsline{toc}{subsubsection}{7.2.4 分类删除}
-
-删除前检查子分类与引用文章，任何一个存在就返回 40903，不做级联删除。
-
-\includegraphics[width=\linewidth]{media/image24.png}
-
-\subsubsection*{7.2.5 分类状态启停}\label{sec:cate-status}
-\addcontentsline{toc}{subsubsection}{7.2.5 分类状态启停}
-
-启停前检查是否还有启用的子分类，有则一并拒绝。
-
-\includegraphics[width=\linewidth]{media/image25.png}
-
-\subsubsection*{7.2.6 分类与内容关联绑定}\label{sec:cate-bind}
-\addcontentsline{toc}{subsubsection}{7.2.6 分类与内容关联绑定}
-
-文章通过 category\_id 外键绑定分类，分类删除前检查是否存在引用文章，有引用则拒绝删除，保证分类与内容关联的完整性。列表检索时按分类含子分类过滤，关联关系随分类树自动向下展开。
-
-\includegraphics[width=\linewidth]{media/image26.png}
-
-\subsection*{7.3 文章内容管理}\label{ux6587ux7ae0ux5185ux5bb9ux7ba1ux7406}
-\addcontentsline{toc}{subsection}{7.3 文章内容管理}
-
-按新增、编辑、批量发布、下架、删除、分页查询、多条件模糊检索、内容状态审核流程分述，各部分功能截屏如下。
-
-本模块接口与功能说明如下表，驳回分支在 7.4 展开。
-
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{8.4cm}>{\raggedright\arraybackslash}p{4.4cm}@{}}
-\toprule
-\textbf{接口名称} & \textbf{功能说明} \\
-\midrule
-\endfirsthead
-\multicolumn{2}{@{}l}{\small（续表）}\\
-\toprule
-\textbf{接口名称} & \textbf{功能说明} \\
-\midrule
-\endhead
-\multicolumn{2}{@{}l}{\textbf{文章} \quad /api/articles} \\
-\midrule
-GET /api/articles & 分页查询文章 \\
-GET /api/articles/\{id\} & 查询文章详情 \\
-POST /api/articles & 新建文章，保存为草稿 \\
-PUT /api/articles/\{id\} & 修改草稿或驳回稿 \\
-POST /api/articles/\{id\}/submit & 提交审核 \\
-POST /api/articles/\{id\}/withdraw & 撤回文章回到草稿 \\
-POST /api/articles/\{id\}/resubmit & 下架后重新提交审核 \\
-POST /api/articles/\{id\}/approve & 审核通过并发布 \\
-POST /api/articles/\{id\}/reject & 驳回文章 \\
-POST /api/articles/\{id\}/offline & 下架文章 \\
-POST /api/articles/batch/approve & 批量通过 \\
-POST /api/articles/batch/offline & 批量下架 \\
-DELETE /api/articles/\{id\} & 删除草稿或驳回稿 \\
-\bottomrule
-\end{longtable}
-
-请求数据结构（DTO）直接取自代码。
-
-\begin{verbatim}
-public class ArticleSaveRequest {
-    @NotBlank(message = "标题不能为空")
-    @Size(max = 200, message = "标题最长 200 字")
-    private String title;
-
-    @Size(max = 500, message = "摘要最长 500 字")
-    private String summary;
-
-    @NotBlank(message = "正文不能为空")
-    private String content;
-
-    @NotNull(message = "请选择分类")
-    private Long categoryId;
-
-    private Integer version;   // 乐观锁版本号，编辑页回传
-}
-
-public class ArticleBatchRequest {
-    @NotNull(message = "请选择文章")
-    private List<Long> ids;
-
-    private String opinion;    // 驳回必填
-    private String reason;     // 下架必填
-}
-\end{verbatim}
-
-文章状态主流转如下（完整五态七迁见 5.3）。
+登录处理流程：
 
 \begin{center}
 \begin{tikzpicture}[
@@ -978,11 +744,103 @@ public class ArticleBatchRequest {
   box/.style={rectangle, draw, rounded corners=1pt, align=center, minimum width=5.8cm, minimum height=0.72cm, font=\small},
   arr/.style={-{Stealth}}
 ]
-\node[box] (a) {草稿 DRAFT};
-\node[box, below=of a] (b) {提交 submit 进入待审核 PENDING};
-\node[box, below=of b] (c) {审核通过 approve 进入已发布 PUBLISHED};
-\node[box, below=of c] (d) {下架 offline 进入已下架 OFFLINE};
-\node[box, below=of d] (e) {重提 resubmit 再次进入 PENDING};
+\node[box] (a) {接收 POST /api/auth/login 请求};
+\node[box, below=of a] (b) {查询用户、比对 BCrypt 密码、验证启用状态};
+\node[box, below=of b] (c) {汇总裁体数据角色与权限集合};
+\node[box, below=of b] (c) {装载角色与权限集合到 LoginUser};
+\node[box, below=of c] (d) {写入 HttpSession，返回当前用户信息};
+\draw[arr] (a) -- (b);
+\draw[arr] (b) -- (c);
+\draw[arr] (c) -- (d);
+\end{tikzpicture}
+\end{center}
+
+权限校验分两层。第一层是接口级权限，控制器方法标注 @RequirePermission，切面读取注解后与当前用户的权限集合做匹配——ANY 模式任一命中即通过，ALL 模式要求全部命中，不满足返回 40300。第二层是数据级权限，在 Service 中用 checkOwner 判断操作主体是否为数据归属人，有 :any 后缀的权限码放行，否则比对 authorId 与当前用户 id，不匹配返回 40301。两层分工明确：AOP 管这个角色能不能调这个接口，Service 管这个用户能不能动这一行数据。
+
+\subsubsection*{\texorpdfstring{\textbf{运行结果}}{运行结果}}\label{sec:user-result}
+\addcontentsline{toc}{subsubsection}{运行结果}
+
+\includegraphics[width=\linewidth]{media/image18.png}
+
+退出：点击"退出"后 Session 被销毁，再次访问受保护接口返回 401
+
+\includegraphics[width=\linewidth]{media/image20.png}
+
+权限拒绝：作者角色尝试访问用户管理接口，AOP 拦截并返回 40300，操作日志同时记录一条 result=DENIED 的条目
+
+\subsection*{\texorpdfstring{\textbf{7.2 内容分类管理}}{7.2 内容分类管理}}\label{ux5185ux5bb9ux5206ux7c7bux7ba1ux7406}
+\addcontentsline{toc}{subsection}{7.2 内容分类管理}
+
+\subsubsection*{\texorpdfstring{\textbf{使用流程}}{使用流程}}\label{sec:cate-flow}
+\addcontentsline{toc}{subsubsection}{使用流程}
+
+管理员进入"分类管理"页看到一棵三级分类树。点击某个分类名称旁的"新增子分类"按钮，在弹出的对话框中输入分类名称、选择排序值、设置启用状态后点击"保存"，新分类即出现在树中对应的层级下。双击分类名称可在行内编辑改名。拖动排序数值可调整同级展示顺序。停用某个分类时，如果其下还有启用的子分类，系统会一并拒绝。删除分类时，系统先检查是否有子分类和被文章引用，任一条件触发则拒绝删除并告知原因。分类层级上限为三级，尝试新建第四级子分类会收到层级超限的提示。
+
+前台阅读站免登录即可访问，按分类浏览已发布的文章，分类树仅展示启用项，点开文章正文阅读量自动加一。
+
+\includegraphics[width=\linewidth]{media/image10.png}
+
+分类管理页：三级树展示，左侧为分类列表，右侧可新增或编辑分类
+
+\includegraphics[width=\linewidth]{media/image14.png}
+
+前台阅读站：按分类浏览已发布文章
+
+\subsubsection*{\texorpdfstring{\textbf{实现逻辑}}{实现逻辑}}\label{sec:cate-impl}
+\addcontentsline{toc}{subsubsection}{实现逻辑}
+
+本模块涉及分类管理与前台浏览两组接口：
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{5.8cm}>{\raggedright\arraybackslash}p{7.0cm}@{}}
+\toprule
+\textbf{接口名称} & \textbf{功能说明} \\
+\midrule
+\endfirsthead
+\multicolumn{2}{@{}l}{\small（续表）}\\
+\toprule
+\textbf{接口名称} & \textbf{功能说明} \\
+\midrule
+\endhead
+\multicolumn{2}{@{}l}{\textbf{分类管理} \quad /api/categories} \\
+\midrule
+GET /api/categories/tree & 查询完整的三级分类树，按 sort 升序排列 \\
+POST /api/categories & 新增分类，推导 level 值并检查层级上限 \\
+PUT /api/categories/\{id\} & 修改分类名称和排序，忽略 parentId \\
+PUT /api/categories/\{id\}/status & 启用或停用分类，检查子分类关联 \\
+DELETE /api/categories/\{id\} & 检查子分类和文章引用后删除，有引用则拒绝 \\
+\multicolumn{2}{@{}l}{\textbf{前台阅读} \quad /api/portal} \\
+\midrule
+GET /api/portal/articles & 分页查询已发布文章，支持按分类筛选 \\
+GET /api/portal/articles/\{id\} & 查询文章正文并增加阅读计数 \\
+GET /api/portal/categories & 查询所有启用分类的树形结构 \\
+\bottomrule
+\end{longtable}
+
+关键 DTO 结构：
+
+\begin{verbatim}
+public class CategorySaveRequest {
+    private Long parentId;           // 0 表示根节点
+    @NotBlank @Size(max = 50)
+    private String name;
+    private Integer sort;
+    @NotNull private Integer status;
+}
+\end{verbatim}
+
+新增分类的处理流程：
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=5mm,
+  box/.style={rectangle, draw, rounded corners=1pt, align=center, minimum width=5.8cm, minimum height=0.72cm, font=\small},
+  arr/.style={-{Stealth}}
+]
+\node[box] (a) {接收 POST /api/categories 新增请求};
+\node[box, below=of a] (b) {校验分类名称与启用状态};
+\node[box, below=of b] (c) {根据父节点计算层级，拒绝四级分类};
+\node[box, below=of c] (d) {写入数据库并由唯一索引防止同级重名};
+\node[box, below=of d] (e) {返回新分类的 id};
 \draw[arr] (a) -- (b);
 \draw[arr] (b) -- (c);
 \draw[arr] (c) -- (d);
@@ -990,85 +848,145 @@ public class ArticleBatchRequest {
 \end{tikzpicture}
 \end{center}
 
-\subsubsection*{7.3.1 内容新增}\label{sec:art-add}
-\addcontentsline{toc}{subsubsection}{7.3.1 内容新增}
+分类不支持更换上级——编辑时接口忽略 parentId，理由是换上级会导致整棵子树的 level 值需要级联更新，且可能产生循环引用。需要移动分类时，正确的做法是新建分类再将文章迁移过去。
 
-新增文章时一律保存为 DRAFT，不允许创建即发布。
+\subsubsection*{\texorpdfstring{\textbf{运行结果}}{运行结果}}\label{sec:cate-result}
+\addcontentsline{toc}{subsubsection}{运行结果}
+
+\includegraphics[width=\linewidth]{media/image24.png}
+
+删除被拒绝：分类下有子分类或文章引用时返回 40903
+
+\includegraphics[width=\linewidth]{media/image25.png}
+
+停用被拒绝：父分类下有启用的子分类时一并拦截
+
+\subsection*{\texorpdfstring{\textbf{7.3 文章内容管理}}{7.3 文章内容管理}}\label{ux6587ux7ae0ux5185ux5bb9ux7ba1ux7406}
+\addcontentsline{toc}{subsection}{7.3 文章内容管理}
+
+\subsubsection*{\texorpdfstring{\textbf{使用流程}}{使用流程}}\label{sec:art-flow}
+\addcontentsline{toc}{subsubsection}{使用流程}
+
+作者点击"写新文章"进入编辑页，填写标题、摘要（可选）、正文和所属分类后，可选择"保存草稿"或"提交审核"。保存草稿后文章状态为 DRAFT，文章在自己的稿件列表中可见，前台不显示。修改满意后点击"提交审核"，文章状态变为 PENDING，进入审核队列。
+
+审核员在"内容审核"页看到待审稿件列表，逐篇阅读后点击"通过"或"驳回"。通过后文章变为 PUBLISHED 并立即在前台可读；驳回必须填写审核意见，文章变为 REJECTED 退回给作者。作者在被驳回的文章卡片里看到意见，修改后再次提交。
+
+管理员可在文章列表勾选多篇稿件执行"批量通过"或"批量下架"，每条独立处理，失败项逐条返回原因。已发布文章可选择下架（必须填写原因），下架后前台不可见。
+
+文章列表支持关键词搜索（按标题模糊匹配）、按状态筛选（DRAFT / PENDING / PUBLISHED / REJECTED / OFFLINE）、按分类筛选（自动包含子分类）、只看自己的稿件、以及按更新时间或发布时间配合标题排序。
 
 \includegraphics[width=\linewidth]{media/image27.png}
 
-\subsubsection*{7.3.2 内容编辑}\label{sec:art-edit}
-\addcontentsline{toc}{subsubsection}{7.3.2 内容编辑}
+写文章页：填写标题、摘要、正文和分类后保存草稿或提交审核
 
-编辑只允许 DRAFT 与 REJECTED 两种状态，并带 version 乐观锁，版本不符返回 40900。
+\includegraphics[width=\linewidth]{media/image8.png}
+
+文章列表：多条件筛选、多维排序、批量操作
+
+\subsubsection*{\texorpdfstring{\textbf{实现逻辑}}{实现逻辑}}\label{sec:art-impl}
+\addcontentsline{toc}{subsubsection}{实现逻辑}
+
+本模块接口覆盖文章全生命周期：
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{5.8cm}>{\raggedright\arraybackslash}p{7.0cm}@{}}
+\toprule
+\textbf{接口名称} & \textbf{功能说明} \\
+\midrule
+\endfirsthead
+\multicolumn{2}{@{}l}{\small（续表）}\\
+\toprule
+\textbf{接口名称} & \textbf{功能说明} \\
+\midrule
+\endhead
+GET /api/articles & 组合筛选 + 多维排序 + 分页查询文章列表 \\
+POST /api/articles & 新建文章，状态固定为 DRAFT \\
+PUT /api/articles/\{id\} & 修改草稿或驳回稿，携带 version 乐观锁 \\
+POST /api/articles/\{id\}/submit & 提交审核：DRAFT → PENDING \\
+POST /api/articles/\{id\}/withdraw & 撤回审核：PENDING → DRAFT \\
+POST /api/articles/\{id\}/approve & 审核通过：PENDING → PUBLISHED，记录审核人与时间 \\
+POST /api/articles/\{id\}/reject & 驳回稿件：PENDING → REJECTED，意见必填 \\
+POST /api/articles/\{id\}/offline & 下架文章：PUBLISHED → OFFLINE，原因必填 \\
+POST /api/articles/\{id\}/resubmit & 重新提交：OFFLINE → PENDING \\
+POST /api/articles/batch/approve & 逐条通过，逐条容错，返回成功数与失败明细 \\
+POST /api/articles/batch/offline & 逐条下架，逐条容错 \\
+POST /api/articles/\{id\}/sensitive-check & 敏感信息预检，检测六类敏感内容 \\
+DELETE /api/articles/\{id\} & 删除草稿或驳回稿，采用逻辑删除 \\
+\bottomrule
+\end{longtable}
+
+关键 DTO 结构：
+
+\begin{verbatim}
+public class ArticleSaveRequest {
+    @NotBlank @Size(max = 200) private String title;
+    @Size(max = 500) private String summary;
+    @NotBlank private String content;
+    @NotNull private Long categoryId;
+    private Integer version;    // 乐观锁版本号
+}
+
+public class ArticleBatchRequest {
+    @NotNull private List<Long> ids;
+    private String opinion;     // 驳回必填
+    private String reason;      // 下架必填
+}
+\end{verbatim}
+
+文章状态流转流程：
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=5mm,
+  box/.style={rectangle, draw, rounded corners=1pt, align=center, minimum width=5.8cm, minimum height=0.72cm, font=\small},
+  arr/.style={-{Stealth}}
+]
+\node[box] (a) {保存草稿 → DRAFT};
+\node[box, below=of a] (b) {提交审核 → PENDING};
+\node[box, below=of b] (c) {审核通过 → PUBLISHED};
+\node[box, below=of c] (d) {执行下架 → OFFLINE};
+\node[box, below=of d] (e) {重新提交 → 再次进入 PENDING};
+\draw[arr] (a) -- (b);
+\draw[arr] (b) -- (c);
+\draw[arr] (c) -- (d);
+\draw[arr] (d) -- (e);
+\end{tikzpicture}
+\end{center}
+
+审核流转的完整五态七迁见 5.3 节。所有状态变更均通过 ArticleStateMachine.next() 查迁移表判定，不在 Service 层中用条件判断分散处理。审核员不能审核自己提交的稿件，Service 中比对 article.authorId 与当前登录用户 id，相同则拒绝。审核全程留痕：通过时写 auditor\_id、audit\_time、publish\_time，驳回时写 auditor\_id、audit\_time、audit\_opinion。
+
+\subsubsection*{\texorpdfstring{\textbf{运行结果}}{运行结果}}\label{sec:art-result}
+\addcontentsline{toc}{subsubsection}{运行结果}
 
 \includegraphics[width=\linewidth]{media/image28.png}
 
-\subsubsection*{7.3.3 批量发布}\label{sec:art-publish}
-\addcontentsline{toc}{subsubsection}{7.3.3 批量发布}
-
-批量发布由 POST /api/articles/batch/approve 完成，逐条处理，不做整体事务。一条数据状态不对，不应该让另外 99 条白做。返回结构固定为 total、success、failed、reasons 四个字段，失败原因逐条可见。
-
-\includegraphics[width=\linewidth]{media/image29.png}
-
-\subsubsection*{7.3.4 下架}\label{sec:art-offline}
-\addcontentsline{toc}{subsubsection}{7.3.4 下架}
-
-下架由 POST /api/articles/batch/offline 完成，同样逐条处理，失败明细可追溯。
-
-\includegraphics[width=\linewidth]{media/image30.png}
-
-\subsubsection*{7.3.5 删除}\label{sec:art-del}
-\addcontentsline{toc}{subsubsection}{7.3.5 删除}
-
-删除仅限 DRAFT 与 REJECTED 两种状态，采用逻辑删除，引用关系保持。
-
-\includegraphics[width=\linewidth]{media/image31.png}
-
-\subsubsection*{7.3.6 分页查询}\label{sec:art-page}
-\addcontentsline{toc}{subsubsection}{7.3.6 分页查询}
-
-分页用 MP 的 PaginationInnerInterceptor 实现，maxLimit 设为 200，在插件层兜底防止拉全表，详见 8.1。
-
-\includegraphics[width=\linewidth]{media/image32.png}
-
-\subsubsection*{7.3.7 多条件模糊检索}\label{sec:art-search}
-\addcontentsline{toc}{subsubsection}{7.3.7 多条件模糊检索}
-
-列表支持关键词、分类含子分类、状态、作者、仅看我的组合筛选，配合多维排序与分页，详见 8.1 与 8.3。
-
-\includegraphics[width=\linewidth]{media/image33.png}
-
-\subsubsection*{7.3.8 内容状态审核流程}\label{sec:art-audit}
-\addcontentsline{toc}{subsubsection}{7.3.8 内容状态审核流程}
-
-提交、撤回、重提全部走 ArticleStateMachine.next()，不在 Service 里写状态判断。审核动作只有通过与驳回两个入口，详细规则与职责分离见 7.4。
+版本冲突：两个用户同时编辑同一篇草稿，后提交者收到 40900
 
 \includegraphics[width=\linewidth]{media/image34.png}
 
-\subsection*{7.4 内容审核流程}\label{ux5185ux5bb9ux5ba1ux6838ux6d41ux7a0b}
-\addcontentsline{toc}{subsection}{7.4 内容审核流程}
+状态错误：尝试对已发布文章直接编辑，状态机拒绝并返回 40901
 
-审核动作只有两个入口，即通过 APPROVE 和驳回 REJECT，两者都要求当前状态为 PENDING。
+\subsection*{\texorpdfstring{\textbf{7.4 系统运维}}{7.4 系统运维}}\label{ux7cfbux7edfux57faux7840ux8fd0ux7ef4}
+\addcontentsline{toc}{subsection}{7.4 系统运维}
 
-驳回意见必填，ArticleBatchRequest.opinion 用 @NotBlank 校验，空意见直接返回 40000。
+\subsubsection*{\texorpdfstring{\textbf{使用流程}}{使用流程}}\label{sec:ops-flow}
+\addcontentsline{toc}{subsubsection}{使用流程}
 
-不能审核自己的稿，Service 里比对 article.authorId 与当前审核员 id，相同则拒绝，实现职责分离。
+管理员打开"工作台"页面，看到全站统计（待审核数、已发布数、分类数、账号数），作者看到自己的四张状态卡片（草稿、审核中、被驳回、已发布）。"操作日志"页面支持按类型（登录/文章/审核/分类/用户/角色/引导问答）、结果（成功/被拦截/失败）、时间范围组合筛选，列表中每条日志展示操作人、动作、脱敏后的参数、耗时和 IP。筛选"DENIED"类型可以集中查看所有越权尝试，筛选"FAIL"可查看系统故障。
 
-审核全程留痕。通过时写 auditor\_id、audit\_time、publish\_time，驳回时写 auditor\_id、audit\_time、audit\_opinion。
+\includegraphics[width=\linewidth]{media/image7.png}
 
-从作者视角看，被驳回的稿件在被驳回卡片里可见。作者修改后执行 MODIFY 回到 DRAFT，再次提交就回到审核队列。
+工作台：作者视角四张状态卡片与全站统计
 
-批量通过与批量下架复用单条逻辑，失败明细可追溯。
+\includegraphics[width=\linewidth]{media/image35.png}
 
-\subsection*{7.5 系统基础运维}\label{ux7cfbux7edfux57faux7840ux8fd0ux7ef4}
-\addcontentsline{toc}{subsection}{7.5 系统基础运维}
+操作日志页：按类型、结果、时间筛选，参数列已脱敏
 
-以下按操作日志记录、数据安全防护、异常统一处理、请求参数校验分述，各部分功能截屏如下。
+\subsubsection*{\texorpdfstring{\textbf{实现逻辑}}{实现逻辑}}\label{sec:ops-impl}
+\addcontentsline{toc}{subsubsection}{实现逻辑}
 
-本模块接口与功能说明如下表。
+本模块涉及日志查询和工作台统计两组接口：
 
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{8.4cm}>{\raggedright\arraybackslash}p{4.4cm}@{}}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{5.8cm}>{\raggedright\arraybackslash}p{7.0cm}@{}}
 \toprule
 \textbf{接口名称} & \textbf{功能说明} \\
 \midrule
@@ -1080,77 +998,131 @@ public class ArticleBatchRequest {
 \endhead
 \multicolumn{2}{@{}l}{\textbf{日志} \quad /api/logs} \\
 \midrule
-GET /api/logs & 分页查询操作日志 \\
+GET /api/logs & 按类型、结果、操作人、时间范围组合筛选并分页查询 \\
 \multicolumn{2}{@{}l}{\textbf{工作台} \quad /api/dashboard} \\
 \midrule
-GET /api/dashboard/stats & 查询工作台统计 \\
+GET /api/dashboard/stats & 返回当前用户稿件各状态计数与全站统计数据 \\
 \bottomrule
 \end{longtable}
 
-异常统一处理流程如下。
+异常统一处理流程：
 
 \begin{center}
 \begin{tikzpicture}[
   node distance=5mm,
-  box/.style={rectangle, draw, rounded corners=1pt, align=center, minimum width=5.6cm, minimum height=0.72cm, font=\small},
+  box/.style={rectangle, draw, rounded corners=1pt, align=center, minimum width=5.8cm, minimum height=0.72cm, font=\small},
   arr/.style={-{Stealth}}
 ]
-\node[box] (a) {控制器或服务层抛出异常};
-\node[box, below=of a] (b) {GlobalExceptionHandler 统一捕获};
-\node[box, below=of b] (c) {按类型分派：BizException / 校验异常 / 未捕获};
-\node[box, below=of c] (d) {转统一 Result，带业务码与 traceId};
+\node[box] (a) {业务层抛出异常};
+\node[box, below=of a] (b) {GlobalExceptionHandler 按类型分派};
+\node[box, below=of b] (c) {按类型匹配：BizException / 校验异常 / 未捕获};
+\node[box, below=of c] (d) {包装为统一 Result，附加业务码和 traceId};
 \draw[arr] (a) -- (b);
 \draw[arr] (b) -- (c);
 \draw[arr] (c) -- (d);
 \end{tikzpicture}
 \end{center}
 
-\subsubsection*{7.5.1 操作日志记录}\label{sec:oplog}
-\addcontentsline{toc}{subsubsection}{7.5.1 操作日志记录}
+操作日志由 @OperLog 注解配合 LogAspect 自动记录，记录内容覆盖操作人、动作、脱敏后的入参、结果（SUCCESS/DENIED/FAIL）、耗时、IP 和 traceId。切面在拦截链中位于 @Order(1)，保证权限拒绝（DENIED）也能被日志切面观察到，不会因 PermissionAspect 先抛异常而漏记。
 
-操作日志由 @OperLog 标注写接口，LogAspect 记录谁、何时、调了什么、脱敏后的参数、结果、耗时、IP 和 traceId。结果分三类，SUCCESS 表示成功，DENIED 表示被权限切面拦截，FAIL 表示业务异常或未捕获异常。切面顺序保证 DENIED 不会被内层异常吞掉。
+数据安全防护分布在三个环节。第一环节是存储：密码用 BCrypt 单向加密，不使用 MD5；实体上 @TableField(select=false) 屏蔽默认查询。第二环节是提交拦截：SensitiveInfoDetector 在保存文章前检测正文中的身份证号（按 GB 11643 校验位验证）、手机号、银行卡号（按 Luhn 校验）、邮箱、API密钥样式的字符串和明文口令，命中即返回 40003；前端保存前调用 POST /api/articles/sensitive-check 弹提示框，后端 create 和 update 用同一套规则硬拦。第三环节是日志脱敏：password、token、apiKey 等按字段名脱敏，同时 MaskUtil 在落日志前对参数内容做二次扫描，身份证号、手机号等替换为掩码形态。
 
-\includegraphics[width=\linewidth]{media/image35.png}
+请求参数校验通过 @Valid 注解在 DTO 层完成，@NotBlank、@Size、@Pattern、@Email 覆盖主要字段，校验失败由 GlobalExceptionHandler 统一转为 40000 并返回具体字段名和原因。
 
-\subsubsection*{7.5.2 数据安全防护}\label{sec:datasec}
-\addcontentsline{toc}{subsubsection}{7.5.2 数据安全防护}
+\subsubsection*{\texorpdfstring{\textbf{运行结果}}{运行结果}}\label{sec:ops-result}
+\addcontentsline{toc}{subsubsection}{运行结果}
 
-数据安全防护有四条。密码用 BCrypt 单向加密，日志中 password、token、apiKey 等字段按名脱敏。入参按内容二次打码，正文里的手机号、身份证号、银行卡号写库前替换为掩码形态。敏感信息提交拦截由 SensitiveInfoDetector 完成，检测身份证、手机号、银行卡、邮箱、API key、明文口令六类，规则只在后端一份。前端保存前调用 POST /api/articles/sensitive-check 弹提示框，后端 create 和 update 用同规则硬拦，绕过前端也返回 40003。未捕获异常只回通用文案 50000，堆栈仅进服务端日志，不随响应外泄。
+\includegraphics[width=\linewidth]{media/image13.png}
 
-\includegraphics[width=\linewidth]{media/image36.png}
-
-\subsubsection*{7.5.3 异常统一处理}\label{sec:excep}
-\addcontentsline{toc}{subsubsection}{7.5.3 异常统一处理}
-
-异常统一处理由 GlobalExceptionHandler 完成，把 BizException、参数校验异常、未捕获异常统一转成 Result 结果。BizException 带业务码，参数校验异常返回 40000，未捕获异常返回 50000，并携带 traceId 方便对日志。
+操作日志筛选"DENIED"：集中展示所有越权尝试，每条记录可见来源 IP、操作人和拒绝原因
 
 \includegraphics[width=\linewidth]{media/image37.png}
 
-\subsubsection*{7.5.4 请求参数校验}\label{sec:valid}
-\addcontentsline{toc}{subsubsection}{7.5.4 请求参数校验}
+异常统一处理：参数校验失败返回 40000，业务冲突返回对应 4xxxxx 码，未知异常只返回 50000
 
-请求参数校验在 DTO 上使用 @NotBlank、@Size、@Pattern、@Email，控制器方法参数加 @Valid，校验失败由全局处理器统一转码。
+\subsection*{\texorpdfstring{\textbf{7.5 站内引导智能体}}{7.5 站内引导智能体}}\label{ux7ad9ux5185ux5f15ux5bfcux667aux80fdux4f53}
+\addcontentsline{toc}{subsection}{7.5 站内引导智能体}
 
-\includegraphics[width=\linewidth]{media/image38.png}
+\subsubsection*{\texorpdfstring{\textbf{使用流程}}{使用流程}}\label{sec:guide-flow}
+\addcontentsline{toc}{subsubsection}{使用流程}
 
-\section*{八、进阶拓展功能}\label{sec:advanced-features}
+系统右下角有一个悬浮球按钮，点击后弹出引导对话框。用户输入自然语言问题如"怎么发布文章"，智能体返回几张可点击的页面卡片，每张卡片展示对应页面的标题、简要说明和所需权限。点击卡片的"去这里"按钮直接跳转到对应页面并高亮目标元素。当前角色没有权限的卡片显示为灰色，同时说明缺少哪个权限。用户还可点击对话框右上角的设置按钮，粘贴自己的 DeepSeek API Key 启用大模型通道——不配置密钥时智能体使用离线规则路由，功能完整可用。
+
+\includegraphics[width=\linewidth]{media/image15.png}
+
+站内引导：提问"怎么发布文章"后返回三张可点击的页面卡片
+
+\subsubsection*{\texorpdfstring{\textbf{实现逻辑}}{实现逻辑}}\label{sec:guide-impl}
+\addcontentsline{toc}{subsubsection}{实现逻辑}
+
+本模块接口：
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{5.8cm}>{\raggedright\arraybackslash}p{7.0cm}@{}}
+\toprule
+\textbf{接口名称} & \textbf{功能说明} \\
+\midrule
+\endfirsthead
+\multicolumn{2}{@{}l}{\small（续表）}\\
+\toprule
+\textbf{接口名称} & \textbf{功能说明} \\
+\midrule
+\endhead
+GET /api/guide/pages & 查询所有页面卡片及权限信息 \\
+POST /api/guide/chat & 提交自然语言问题，返回匹配的页面卡片 \\
+GET /api/guide/suggestions & 查询快捷建议（有被驳回稿、待审核等场景提示） \\
+PUT /api/guide/llm & 将用户自己的 API Key 存入当前 Session \\
+DELETE /api/guide/llm & 清除会话中密钥，回落到服务端配置 \\
+POST /api/guide/llm/test & 发送一次 ping 请求验证密钥连通性 \\
+GET /api/guide/selfcheck & 返回站点地图自检结果 \\
+\bottomrule
+\end{longtable}
+
+引导问答处理流程：
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=5mm,
+  box/.style={rectangle, draw, rounded corners=1pt, align=center, minimum width=5.8cm, minimum height=0.72cm, font=\small},
+  arr/.style={-{Stealth}}
+]
+\node[box] (a) {接收 POST /api/guide/chat 提问};
+\node[box, below=of a] (b) {IntentRouter 中文 bigram 打分，命中直接返回卡片};
+\node[box, below=of b] (c) {未命中时，将候选卡片摘要发给大模型};
+\node[box, below=of c] (d) {校验模型返回的卡片 id 在站点地图内};
+\node[box, below=of d] (e) {返回卡片列表，前端渲染为可点击卡片};
+\draw[arr] (a) -- (b);
+\draw[arr] (b) -- (c);
+\draw[arr] (c) -- (d);
+\draw[arr] (d) -- (e);
+\end{tikzpicture}
+\end{center}
+
+智能体知道全站结构的方式是启动期反射扫描 RequestMappingHandlerMapping，读取每个 Controller 方法上的 @GuideCard 和 @RequirePermission 注解，自动生成站点地图。站点地图不是手写文档——SiteMapValidator 执行五条启动期校验：卡片 id 必须唯一（C1）、每个受控 Controller 整类至少有一张卡片（C2）、卡片声明的权限码必须存在于数据库（C3）、YAML 配置不能凭空新增卡片（C4）、卡片路由非空且唯一（C5）。任何一条不通过，服务拒绝启动。
+
+回答分两层。L0 规则层用中文 bigram 对标题、别名、步骤文本建倒排索引并打分，命中即返回，离线可用。L1 模型层仅在规则未命中且用户配置了密钥时调用，模型只接收候选卡片的 id、title、summary，只能回卡片 id 而不能生成新卡片，id 不在站点地图内则整体丢弃。卡片内容从不经过模型，模型无法编造页面。
+
+\subsubsection*{\texorpdfstring{\textbf{运行结果}}{运行结果}}\label{sec:guide-result}
+\addcontentsline{toc}{subsubsection}{运行结果}
+
+断网环境下智能体完整可用（规则层离线运行）。无权限的卡片仍可见但置灰，不会假装用户能使用不存在的能力。模型越界返回的卡片 id 会被静默丢弃，前端不提示异常。
+
+\section*{\texorpdfstring{\textbf{八、进阶拓展功能}}{八、进阶拓展功能}}\label{sec:advanced-features}
 \addcontentsline{toc}{section}{八、进阶拓展功能}
 
 
-
-\subsection*{8.1 高级数据处理}\label{ux9ad8ux7ea7ux6570ux636eux5904ux7406}
+\subsection*{\texorpdfstring{\textbf{8.1 高级数据处理}}{8.1 高级数据处理}}\label{ux9ad8ux7ea7ux6570ux636eux5904ux7406}
 \addcontentsline{toc}{subsection}{8.1 高级数据处理}
 
 本章覆盖分页、排序、批量、逻辑删除、自动填充五个数据层特性，逐个小节展开，每个小节配一张功能截屏。
 
-\subsubsection*{8.1.1 分页高级查询}\label{sec:page}
+\subsubsection*{\texorpdfstring{\textbf{8.1.1 分页高级查询}}{8.1.1 分页高级查询}}\label{sec:page}
 \addcontentsline{toc}{subsubsection}{8.1.1 分页高级查询}
 
 分页用 MP 的 PaginationInnerInterceptor 实现，maxLimit 设为 200，在插件层兜底，防止绕过 Service 校验的请求拉全表。分页结果统一包装成 PageResult，返回总数与当前页。
 
 \includegraphics[width=\linewidth]{media/image39.png}
 
-\subsubsection*{8.1.2 多维排序筛选}\label{sec:sort}
+\subsubsection*{\texorpdfstring{\textbf{8.1.2 多维排序筛选}}{8.1.2 多维排序筛选}}\label{sec:sort}
 \addcontentsline{toc}{subsubsection}{8.1.2 多维排序筛选}
 
 多维排序用 SortWhitelist 实现，入参形如 createTime,desc、title,asc，逻辑名映射物理列，最多 3 个字段，可追加唯一键做 tiebreaker，避免翻页重复或漏行。
@@ -1159,33 +1131,33 @@ SortWhitelist 值得单独说明：ORDER BY 后面不能使用预编译占位符
 
 \includegraphics[width=\linewidth]{media/image40.png}
 
-\subsubsection*{8.1.3 批量处理}\label{sec:batch}
+\subsubsection*{\texorpdfstring{\textbf{8.1.3 批量处理}}{8.1.3 批量处理}}\label{sec:batch}
 \addcontentsline{toc}{subsubsection}{8.1.3 批量处理}
 
 批量处理由 ArticleService.batchApprove 与 batchOffline 实现，逐条容错，返回成功数与失败明细。
 
 \includegraphics[width=\linewidth]{media/image41.png}
 
-\subsubsection*{8.1.4 逻辑删除}\label{sec:logic-del}
+\subsubsection*{\texorpdfstring{\textbf{8.1.4 逻辑删除}}{8.1.4 逻辑删除}}\label{sec:logic-del}
 \addcontentsline{toc}{subsubsection}{8.1.4 逻辑删除}
 
 逻辑删除用 @TableLogic 加 deleted 字段实现，全局配置 logic-delete-field 为 deleted，业务代码不写 deleted = 0。删除后数据仍在库里，可恢复。
 
 \includegraphics[width=\linewidth]{media/image42.png}
 
-\subsubsection*{8.1.5 数据自动填充}\label{sec:autofill}
+\subsubsection*{\texorpdfstring{\textbf{8.1.5 数据自动填充}}{8.1.5 数据自动填充}}\label{sec:autofill}
 \addcontentsline{toc}{subsubsection}{8.1.5 数据自动填充}
 
 数据自动填充用 AuditMetaObjectHandler 实现，createTime、updateTime、createBy、updateBy 由拦截器写入，业务代码不手写。
 
 \includegraphics[width=\linewidth]{media/image43.png}
 
-\subsection*{8.2 MyBatis-Plus 高级特性整合}\label{mybatis-plus-ux9ad8ux7ea7ux7279ux6027ux6574ux5408}
+\subsection*{\texorpdfstring{\textbf{8.2 MyBatis-Plus 高级特性整合}}{8.2 MyBatis-Plus 高级特性整合}}\label{mybatis-plus-ux9ad8ux7ea7ux7279ux6027ux6574ux5408}
 \addcontentsline{toc}{subsection}{8.2 MyBatis-Plus 高级特性整合}
 
 MybatisPlusConfig 里装配三个拦截器，构成有序拦截链，这一章说明每个拦截器的职责和顺序为什么不能乱。
 
-\subsubsection*{8.2.1 拦截器链装配}\label{sec:mp-interceptor}
+\subsubsection*{\texorpdfstring{\textbf{8.2.1 拦截器链装配}}{8.2.1 拦截器链装配}}\label{sec:mp-interceptor}
 \addcontentsline{toc}{subsubsection}{8.2.1 拦截器链装配}
 
 \begin{verbatim}
@@ -1205,7 +1177,7 @@ public MybatisPlusInterceptor mybatisPlusInterceptor() {
 
 \includegraphics[width=\linewidth]{media/image44.png}
 
-\subsubsection*{8.2.2 插件顺序是硬约束}\label{sec:mp-order}
+\subsubsection*{\texorpdfstring{\textbf{8.2.2 插件顺序是硬约束}}{8.2.2 插件顺序是硬约束}}\label{sec:mp-order}
 \addcontentsline{toc}{subsubsection}{8.2.2 插件顺序是硬约束}
 
 分页插件自动做 count 与分页，无需手写 limit。乐观锁用 OptimisticLockerInnerInterceptor 加 @Version，并发编辑返回 40900 而非静默覆盖。防全表更新用 BlockAttackInnerInterceptor，没有 where 的 update 和 delete 会被拦截。
@@ -1214,26 +1186,26 @@ public MybatisPlusInterceptor mybatisPlusInterceptor() {
 
 \includegraphics[width=\linewidth]{media/image45.png}
 
-\subsubsection*{8.2.3 条件构造器}\label{sec:mp-wrapper}
+\subsubsection*{\texorpdfstring{\textbf{8.2.3 条件构造器}}{8.2.3 条件构造器}}\label{sec:mp-wrapper}
 \addcontentsline{toc}{subsubsection}{8.2.3 条件构造器}
 
 条件构造器用 LambdaQueryWrapper，字段引用类型安全，避免手写列名。逻辑删除用 @TableLogic 全局开关，所有查询自动过滤；自动填充用 MetaObjectHandler，审计四字段统一写入，这两点见 8.1。
 
 \includegraphics[width=\linewidth]{media/image46.png}
 
-\subsection*{8.3 SQL 专项优化：列表页的 N+1}\label{sql-ux4e13ux9879ux4f18ux5316ux5217ux8868ux9875ux7684-n1}
+\subsection*{\texorpdfstring{\textbf{8.3 SQL 专项优化：列表页的 N+1}}{8.3 SQL 专项优化：列表页的 N+1}}\label{sql-ux4e13ux9879ux4f18ux5316ux5217ux8868ux9875ux7684-n1}
 \addcontentsline{toc}{subsection}{8.3 SQL 专项优化：列表页的 N+1}
 
 这一章只解决一个问题：列表页从 1+N 条 SQL 降到 2 条。
 
-\subsubsection*{8.3.1 问题诊断}\label{sec:n1-diag}
+\subsubsection*{\texorpdfstring{\textbf{8.3.1 问题诊断}}{8.3.1 问题诊断}}\label{sec:n1-diag}
 \addcontentsline{toc}{subsubsection}{8.3.1 问题诊断}
 
 朴素写法：1 条 SQL 查 20 条文章，循环里再各查 20 次分类名和作者名，共 41 条 SQL。文章一多，查询次数线性上涨，列表页越来越慢。
 
 \includegraphics[width=\linewidth]{media/image47.png}
 
-\subsubsection*{8.3.2 三表 join 方案}\label{sec:n1-join}
+\subsubsection*{\texorpdfstring{\textbf{8.3.2 三表 join 方案}}{8.3.2 三表 join 方案}}\label{sec:n1-join}
 \addcontentsline{toc}{subsubsection}{8.3.2 三表 join 方案}
 
 一条三表 join 把展示所需字段一次带出：
@@ -1252,19 +1224,19 @@ WHERE a.deleted = 0
 
 \includegraphics[width=\linewidth]{media/image48.png}
 
-\subsubsection*{8.3.3 判据与索引配合}\label{sec:n1-criteria}
+\subsubsection*{\texorpdfstring{\textbf{8.3.3 判据与索引配合}}{8.3.3 判据与索引配合}}\label{sec:n1-criteria}
 \addcontentsline{toc}{subsubsection}{8.3.3 判据与索引配合}
 
 判据不是"看起来变快了"，而是把 mapper 日志开到 DEBUG 数 SQL 条数。动态条件全部用 \#\{\} 预编译；只有 ORDER BY 使用 \$\{\}，而它的值只可能由 SortWhitelist 从白名单生成。idx\_article\_query 覆盖默认视图的过滤与排序组合，分页插件限制单页 200 条。
 
 \includegraphics[width=\linewidth]{media/image49.png}
 
-\subsection*{8.4 RESTful 接口与 ApiFox 联调}\label{restful-ux63a5ux53e3ux4e0e-apifox-ux8054ux8c03}
+\subsection*{\texorpdfstring{\textbf{8.4 RESTful 接口与 ApiFox 联调}}{8.4 RESTful 接口与 ApiFox 联调}}\label{restful-ux63a5ux53e3ux4e0e-apifox-ux8054ux8c03}
 \addcontentsline{toc}{subsection}{8.4 RESTful 接口与 ApiFox 联调}
 
 这一章说明统一返回结构、五位业务码，以及 OpenAPI 与 ApiFox 的对账。
 
-\subsubsection*{8.4.1 统一返回结构}\label{sec:rest-result}
+\subsubsection*{\texorpdfstring{\textbf{8.4.1 统一返回结构}}{8.4.1 统一返回结构}}\label{sec:rest-result}
 \addcontentsline{toc}{subsubsection}{8.4.1 统一返回结构}
 
 统一返回结构如下：
@@ -1282,7 +1254,7 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 
 \includegraphics[width=\linewidth]{media/image50.png}
 
-\subsubsection*{8.4.2 业务码设计}\label{sec:rest-code}
+\subsubsection*{\texorpdfstring{\textbf{8.4.2 业务码设计}}{8.4.2 业务码设计}}\label{sec:rest-code}
 \addcontentsline{toc}{subsubsection}{8.4.2 业务码设计}
 
 \begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{7.2cm}>{\raggedright\arraybackslash}p{1.8cm}@{}}
@@ -1309,136 +1281,67 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 
 \includegraphics[width=\linewidth]{media/image51.png}
 
-\subsubsection*{8.4.3 OpenAPI 与 ApiFox 联调}\label{sec:rest-apifox}
+\subsubsection*{\texorpdfstring{\textbf{8.4.3 OpenAPI 与 ApiFox 联调}}{8.4.3 OpenAPI 与 ApiFox 联调}}\label{sec:rest-apifox}
 \addcontentsline{toc}{subsubsection}{8.4.3 OpenAPI 与 ApiFox 联调}
 
-接口文档与联调上，apifox/cms-openapi.json 采用 OpenAPI 3.0，可直接导入 Apifox。文档与实现用脚本对账，50 个操作、50 个 schema、37 条路径与 Controller 双向差集为空。敏感信息预检接口返回命中类型与字符区间，不回显原文；写入接口会再次校验，命中时返回 40003。
+接口文档与联调上，apifox/cms-openapi.json 采用 OpenAPI 3.0，可直接导入 ApiFox。文档与实现用脚本对账，所有操作、schema、路径与 Controller 双向差集为空。也就是说，没有文档里有而代码里没有的接口，也没有相反的情况。
 
 \includegraphics[width=\linewidth]{media/image52.png}
 
-\subsection*{8.5 站内引导智能体（附加模块）}\label{ux7ad9ux5185ux5f15ux5bfcux667aux80fdux4f53ux9644ux52a0ux6a21ux5757}
-\addcontentsline{toc}{subsection}{8.5 站内引导智能体（附加模块）}
+在 ApiFox 中打开具体接口后，可直接在可视化调试视图中维护请求。以用户分页查询接口 GET /api/users 为例，其查询参数被完整解析为 pageNum、pageSize、keyword、status、roleCode 共五项，每项标注了 integer 或 string 类型、默认值与启用状态，调试时只需勾选并修改参数值即可发送，无需手写原始 HTTP 报文；请求体、请求头、鉴权信息与前后置脚本同样以标签页形式分区管理。
 
-这是一个差异化模块，但它的设计原则与主线一致，就是不假装能力。
+\includegraphics[width=\linewidth]{media/image61.png}
 
-本模块接口与功能说明如下表。
+\subsection*{\texorpdfstring{\textbf{8.5 前端视觉体系与交互设计}}{8.5 前端视觉体系与交互设计}}\label{sec:frontend-visual}
+\addcontentsline{toc}{subsection}{8.5 前端视觉体系与交互设计}
 
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{8.4cm}>{\raggedright\arraybackslash}p{4.4cm}@{}}
-\toprule
-\textbf{接口名称} & \textbf{功能说明} \\
-\midrule
-\endfirsthead
-\multicolumn{2}{@{}l}{\small（续表）}\\
-\toprule
-\textbf{接口名称} & \textbf{功能说明} \\
-\midrule
-\endhead
-\multicolumn{2}{@{}l}{\textbf{站内引导} \quad /api/guide} \\
-\midrule
-GET /api/guide/pages & 查询全部页面卡片 \\
-POST /api/guide/chat & 提问引导 \\
-GET /api/guide/suggestions & 查询快捷问题 \\
-GET /api/guide/llm & 查询模型通道状态 \\
-PUT /api/guide/llm & 配置模型密钥 \\
-DELETE /api/guide/llm & 清除模型密钥 \\
-POST /api/guide/llm/test & 测试模型连通性 \\
-GET /api/guide/selfcheck & 站点地图自检 \\
-\bottomrule
-\end{longtable}
+前端没有套用现成后台模板，而是独立设计了一套完整的视觉与交互体系。实现上坚持一条约束：所有改动都收敛在一个纯覆盖层样式表 mystic.css 和少量可插拔脚本里，不改动 Thymeleaf 页面的 HTML 结构，因此视觉升级不会反向影响后端渲染与业务逻辑。样式表按 app.css、refinement.css、mystic.css 三层顺序加载，后者只在前者基础上做覆盖，需要回退时移除最后一层即可。
 
-引导问答处理流程如下（时序详见 5.4）。
+\subsubsection*{\texorpdfstring{\textbf{8.5.1 设计语言：秘术灵体风}}{8.5.1 设计语言：秘术灵体风}}\label{sec:design-language}
+\addcontentsline{toc}{subsubsection}{8.5.1 设计语言：秘术灵体风}
 
-\begin{center}
-\begin{tikzpicture}[
-  node distance=5mm,
-  box/.style={rectangle, draw, rounded corners=1pt, align=center, minimum width=5.6cm, minimum height=0.72cm, font=\small},
-  arr/.style={-{Stealth}}
-]
-\node[box] (a) {POST /api/guide/chat 收到提问};
-\node[box, below=of a] (b) {IntentRouter 规则层中文 bigram 打分};
-\node[box, below=of b] (c) {未命中且模型可用时，发给模型候选卡片摘要};
-\node[box, below=of c] (d) {校验返回卡片 id 在站点地图内};
-\node[box, below=of d] (e) {返回卡片，前端渲染};
-\draw[arr] (a) -- (b);
-\draw[arr] (b) -- (c);
-\draw[arr] (c) -- (d);
-\draw[arr] (d) -- (e);
-\end{tikzpicture}
-\end{center}
+整体视觉定位为秘术灵体风，用深紫黑夜空承载神秘氛围，以紫罗兰与电光青作为霓虹强调色，配合半透明玻璃拟态面板。底色为接近黑的深紫，面板采用低透明白色叠加细描边并做背景模糊，叠在星空底上形成层次。背景层固定且不拦截点击，由星点、法阵线稿和两团径向光晕组成，并以缓慢的位移动画制造漂移感。品牌标识有两个：主标识是法阵印章徽记，替代了原先的文字 Logo；另一个是悬浮在右下角的侧颜兜帽灵体，其漂浮、摇摆与光晕呼吸全部由外部 CSS 动画驱动，鼠标悬停时增强发光，做到拟人而不喧宾夺主。
 
+\includegraphics[width=\linewidth]{media/image54.png}
 
+\subsubsection*{\texorpdfstring{\textbf{8.5.2 变量驱动与每页主题}}{8.5.2 变量驱动与每页主题}}\label{sec:per-page-theme}
+\addcontentsline{toc}{subsubsection}{8.5.2 变量驱动与每页主题}
 
-知道全站不是靠维护文档，而是靠启动期反射代码。SiteMapCollector 扫描 RequestMappingHandlerMapping，读取 @GuideCard 与 @RequirePermission。SiteMapValidator 执行 C1--C5 校验，包括卡片 id 唯一、受控 Controller 必须有卡片、权限码必须存在于 sys\_permission、yaml 不许凭空造页面、路由唯一非空。任何一条不通过，服务拒绝启动，某页面不在引导里就不会是演示时才发现的问题。
+整套配色不写死在组件里，而是集中在根选择器的自定义属性中，涵盖底色、面板、文字、描边、品牌色、圆角与阴影，并额外提供一个品牌色 RGB 分量变量，便于在不同透明度下复用同一种颜色。页面启动时，layout.js 根据当前路径给 body 打上 data-page 标识，mystic.css 再按该标识覆盖品牌色变量，使八个后台页面各有专属主题色，例如工作台为秘术紫、文章列表为灵体青、写作为创作粉、审核为审核金、分类为翠绿、用户为天蓝、角色为品红、日志为薄荷。这里有一条刻意的边界：页面主题只覆盖品牌交互色，不触碰成功、警告、危险等语义色，因此已驳回的红、待审核的黄、已发布的绿在任何主题下都保持稳定语义。
 
-规则优先，模型兜底。规则层用中文 bigram 打分，命中直接返回，离线可用，未命中的短问句才走模型通道。
+\includegraphics[width=\linewidth]{media/image55.png}
 
-模型不产生内容。发给模型的是候选卡片的 id、title、summary，模型只回卡片 id，且必须是站点地图的子集，越界整体丢弃。卡片文案从不经过模型。
+\subsubsection*{\texorpdfstring{\textbf{8.5.3 主题切换器与本地持久化}}{8.5.3 主题切换器与本地持久化}}\label{sec:theme-switcher}
+\addcontentsline{toc}{subsubsection}{8.5.3 主题切换器与本地持久化}
 
-用户可自填模型密钥。PUT /api/guide/llm 只把密钥存入当前 HttpSession，任何接口只回显尾号。DELETE 回落服务端配置。POST /api/guide/llm/test 真发一次请求验证连通性。
+为把配色权交给使用者，系统在右下角、灵体上方提供一个悬浮调色盘。面板提供三种模式：跟随页面即默认的每页自动配色；八个预设色点，选中后全站统一为该色并跨页面保持；以及一个自定义取色器，使用者可在系统调色板中选择任意颜色。手动模式下脚本在文档根节点写入内联变量并标记 data-theme，使页面级主题规则让位，内联变量优先级最高；选择结果保存在浏览器本地存储中，刷新与跳转后仍然保留，点击跟随页面即可恢复自动配色。
 
-\subsection*{8.6 界面实拍}\label{ux754cux9762ux5b9eux62cd}
-\addcontentsline{toc}{subsection}{8.6 界面实拍}
+\includegraphics[width=\linewidth]{media/image56.png}
 
-登录页与工作台：
+\includegraphics[width=\linewidth]{media/image57.png}
 
-\includegraphics[width=\linewidth]{media/image6.png}
+\subsubsection*{\texorpdfstring{\textbf{8.5.4 表格列居中与前台沉浸阅读}}{8.5.4 表格列居中与前台沉浸阅读}}\label{sec:table-align}
+\addcontentsline{toc}{subsubsection}{8.5.4 表格列居中与前台沉浸阅读}
 
-登录页
+数据表格按列的语义分别设定对齐方式：状态、数字、日期、分类、作者、操作及复选框等非长文本列，表头与单元格统一居中，而标题、名称、邮箱、说明等长文本列保持左对齐，规则按各表格真实的列序逐表编写，避免一刀切。前台阅读门户则整体替换为暗色沉浸样式，与后台保持同一视觉语言，保证读者从首页到文章详情的连贯体验。
 
-\includegraphics[width=\linewidth]{media/image7.png}
+\subsubsection*{\texorpdfstring{\textbf{8.5.5 交互彩蛋设计}}{8.5.5 交互彩蛋设计}}\label{sec:easter-eggs}
+\addcontentsline{toc}{subsubsection}{8.5.5 交互彩蛋设计}
 
-工作台：四张状态卡片与全站统计
+在不影响功能的前提下，系统加入了一组可插拔的交互彩蛋，增强趣味性与记忆点。其一是灵体秘术台词：脚本在底层包装全局请求，对写操作进行监听，依据请求路径与成功或失败结果，让灵体弹出对应气泡，共定义十六条台词，例如提交审核时提示灵稿已送入审判法阵、审核通过时提示灵魂纯净准予解封、删除时提示又一道灵体归于虚无，越权则提示审判法阵拒绝。其二是点击法阵涟漪：以事件委托在点击位置生成实线与虚线两层旋转法阵，短时间内自动消散且不拦截操作。其三是黑客指令彩蛋：在键盘上输入经典的 Konami 指令序列后，触发全屏矩阵字符雨并让灵体短暂暴走，数秒后自动恢复，同时浏览器控制台留有彩蛋提示。
 
-文章列表（多条件筛选 + 批量操作）与写文章页：
+\includegraphics[width=\linewidth]{media/image58.png}
 
-\includegraphics[width=\linewidth]{media/image8.png}
+\includegraphics[width=\linewidth]{media/image59.png}
 
-文章列表
+\includegraphics[width=\linewidth]{media/image60.png}
 
-内容审核与分类管理：
-
-\includegraphics[width=\linewidth]{media/image9.png}
-
-内容审核
-
-\includegraphics[width=\linewidth]{media/image10.png}
-
-分类管理：三级树
-
-用户与角色权限：
-
-\includegraphics[width=\linewidth]{media/image11.png}
-
-用户管理
-
-\includegraphics[width=\linewidth]{media/image12.png}
-
-角色与权限
-
-操作日志（含 DENIED 行）与前台阅读站：
-
-\includegraphics[width=\linewidth]{media/image13.png}
-
-操作日志
-
-\includegraphics[width=\linewidth]{media/image14.png}
-
-前台阅读站
-
-站内引导（规则层命中，返回三张可点击卡片）：
-
-\includegraphics[width=\linewidth]{media/image15.png}
-
-站内引导
-
-以上截图均为 2026-11-08 在本机运行中的应用上，用无头浏览器登录 admin 后逐页实拍，不是设计稿。
-
-\section*{九、健壮性与稳定性设计}\label{sec:robustness}
+\section*{\texorpdfstring{\textbf{九、健壮性与稳定性设计}}{九、健壮性与稳定性设计}}\label{sec:robustness}
 \addcontentsline{toc}{section}{九、健壮性与稳定性设计}
 
 健壮性与稳定性不是拍脑袋保证的，它拆成三件事：先按类别把风险逐条列出来，再按等级排出处理优先级，最后用一套统一异常处理机制兜住所有出口。
 
-\subsection*{9.1 风险分类}\label{sec:risk-class}
+\subsection*{\texorpdfstring{\textbf{9.1 风险分类}}{9.1 风险分类}}\label{sec:risk-class}
 \addcontentsline{toc}{subsection}{9.1 风险分类}
 
 风险按来源分成六类，逐条列出触发场景和对应业务码。
@@ -1485,7 +1388,7 @@ GET /api/guide/selfcheck & 站点地图自检 \\
 \bottomrule
 \end{longtable}
 
-\subsection*{9.2 风险等级与优先级}\label{sec:risk-level}
+\subsection*{\texorpdfstring{\textbf{9.2 风险等级与优先级}}{9.2 风险等级与优先级}}\label{sec:risk-level}
 \addcontentsline{toc}{subsection}{9.2 风险等级与优先级}
 
 按危害程度排优先级，高危先处理，低危做兜底。定级只问一句：这个风险真的发生时，损失有多大。
@@ -1518,7 +1421,7 @@ GET /api/guide/selfcheck & 站点地图自检 \\
 \bottomrule
 \end{longtable}
 
-\subsection*{9.3 异常处理方案设计}\label{sec:exc-design}
+\subsection*{\texorpdfstring{\textbf{9.3 异常处理方案设计}}{9.3 异常处理方案设计}}\label{sec:exc-design}
 \addcontentsline{toc}{subsection}{9.3 异常处理方案设计}
 
 统一异常处理由五个约定构成。
@@ -1533,7 +1436,7 @@ GET /api/guide/selfcheck & 站点地图自检 \\
 
 \includegraphics[width=\linewidth]{media/image53.png}
 
-\subsection*{9.4 异常处理流程图}\label{sec:exc-flow}
+\subsection*{\texorpdfstring{\textbf{9.4 异常处理流程图}}{9.4 异常处理流程图}}\label{sec:exc-flow}
 \addcontentsline{toc}{subsection}{9.4 异常处理流程图}
 
 一次请求从进入到响应，每层都有一道检查，任何一层失败都会落到统一出口。
@@ -1558,7 +1461,7 @@ GET /api/guide/selfcheck & 站点地图自检 \\
 \end{tikzpicture}
 \end{center}
 
-\subsection*{9.5 请求生命周期状态机}\label{sec:exc-state}
+\subsection*{\texorpdfstring{\textbf{9.5 请求生命周期状态机}}{9.5 请求生命周期状态机}}\label{sec:exc-state}
 \addcontentsline{toc}{subsection}{9.5 请求生命周期状态机}
 
 中间态沿主线前进，任何一步失败都进入终态。终态不可恢复，直接返回对应业务码。
@@ -1592,7 +1495,7 @@ GET /api/guide/selfcheck & 站点地图自检 \\
 \end{tikzpicture}
 \end{center}
 
-\subsection*{9.6 核心代码}\label{sec:exc-code}
+\subsection*{\texorpdfstring{\textbf{9.6 核心代码}}{9.6 核心代码}}\label{sec:exc-code}
 \addcontentsline{toc}{subsection}{9.6 核心代码}
 
 统一错误码、业务异常、全局处理器三段代码，直接取自工程。
@@ -1803,12 +1706,11 @@ public class GlobalExceptionHandler {
 }
 \end{lstlisting}
 
-\section*{十、重难点与解决方案}\label{ux516bux91cdux96beux70b9ux4e0eux89e3ux51b3ux65b9ux6848}
+
+\section*{\texorpdfstring{\textbf{十、重难点与解决方案}}{十、重难点与解决方案}}\label{ux516bux91cdux96beux70b9ux4e0eux89e3ux51b3ux65b9ux6848}
 \addcontentsline{toc}{section}{十、重难点与解决方案}
 
-
-
-\subsection*{10.1 状态机写成表，而不是散落的 if}\label{ux72b6ux6001ux673aux5199ux6210ux8868ux800cux4e0dux662fux6563ux843dux7684-if}
+\subsection*{\texorpdfstring{\textbf{10.1 状态机写成表，而不是散落的 if}}{10.1 状态机写成表，而不是散落的 if}}\label{ux72b6ux6001ux673aux5199ux6210ux8868ux800cux4e0dux662fux6563ux843dux7684-if}
 \addcontentsline{toc}{subsection}{10.1 状态机写成表，而不是散落的 if}
 
 难点在于文章状态在多个接口里被修改，每处都写 if (status == X)，新增一条迁移要改多处，也很难证明没有非法路径。
@@ -1817,60 +1719,48 @@ public class GlobalExceptionHandler {
 
 收益是状态图与代码成为同一份事实，改代码就必须改图。
 
-\subsection*{10.2 横向越权：接口权限无法阻止修改他人数据}\label{ux6a2aux5411ux8d8aux6743ux63a5ux53e3ux6743ux9650ux7ba1ux4e0dux4f4fux6539ux522bux4ebaux7684ux6570ux636e}
+\subsection*{\texorpdfstring{\textbf{10.2 横向越权：接口权限无法阻止修改他人数据}}{10.2 横向越权：接口权限无法阻止修改他人数据}}\label{ux6a2aux5411ux8d8aux6743ux63a5ux53e3ux6743ux9650ux7ba1ux4e0dux4f4fux6539ux522bux4ebaux7684ux6570ux636e}
 \addcontentsline{toc}{subsection}{10.2 横向越权：接口权限无法阻止修改他人数据}
 
 难点在于 author 有 article:update:own 权限，AOP 看到权限码就放行，但接口 /api/articles/\{id\} 的 id 可以是别人的稿子。
 
 做法是 AOP 只做第一层，Service 里 checkOwner 做第二层，:any 直接过，:own 必须比对 authorId。用 bob 的草稿 id 实测，以 alice 身份请求，返回 403/40301。
 
-\subsection*{10.3 列表页的 N+1}\label{ux5217ux8868ux9875ux7684-n1}
-\addcontentsline{toc}{subsection}{10.3 列表页的 N+1}
-
-见 8.3。判据是 mapper DEBUG 日志的 SQL 条数，不是主观感受。
-
-\subsection*{10.4 模块边界：文档约束必须有判据}\label{ux6a21ux5757ux8fb9ux754cux8fd9ux79cdux6587ux6863ux91ccux7684ux4e00ux53e5ux8bddux5fc5ux987bux6709ux5224ux636e}
-\addcontentsline{toc}{subsection}{10.4 模块边界：文档约束必须有判据}
-
-见 6.3。核心教训是测试绿不等于代码对，可能只是判据没有覆盖到真正的越界，必须主动注入越界代码验证它会变红。
-
-\subsection*{10.5 智能体不得编造不存在的功能}\label{ux667aux80fdux4f53ux4e0dux80fdux7b54ux4e0dux51faux5c31ux7f16}
+\subsection*{\texorpdfstring{\textbf{10.5 智能体不得编造不存在的功能}}{10.5 智能体不得编造不存在的功能}}\label{ux667aux80fdux4f53ux4e0dux80fdux7b54ux4e0dux51faux5c31ux7f16}
 \addcontentsline{toc}{subsection}{10.5 智能体不得编造不存在的功能}
 
 难点在于让模型自由回答，它一定会编出站点里不存在的页面。
 
 做法是把模型能说什么收缩成封闭集合。启动期生成 9 张卡片，模型只能在里面选 id，越界就丢弃。规则层未命中且模型不可用时就明说系统里没有这个功能，不强行返回卡片。
 
-\subsection*{10.6 敏感信息的误判与日志二次泄漏}\label{ux654fux611fux4fe1ux606fux7684ux8befux5224ux4e0eux65e5ux5fd7ux4e8cux6b21ux6cc4ux6f0f}
+\subsection*{\texorpdfstring{\textbf{10.6 敏感信息的误判与日志二次泄漏}}{10.6 敏感信息的误判与日志二次泄漏}}\label{ux654fux611fux4fe1ux606fux7684ux8befux5224ux4e0eux65e5ux5fd7ux4e8cux6b21ux6cc4ux6f0f}
 \addcontentsline{toc}{subsection}{10.6 敏感信息的误判与日志二次泄漏}
 
 第一个难点是见数字就拦，会让订单号、统计数字全被误伤，用户很快学会无视提示框。做法是身份证走 GB 11643 校验位，银行卡走 Luhn，18 位数字本身不算命中。同一片段做区间占位，防止 18 位身份证碰巧通过 Luhn 后被同时报成银行卡。
 
 第二个难点是拦住了提交，但被拒绝的请求参数仍会进 sys\_log。做法是日志写入前用同一套规则打码，判据是日志表里搜不到原文。
 
-\subsection*{10.7 问题与方案汇总}\label{ux95eeux9898ux4e0eux65b9ux6848ux6c47ux603b}
+\subsection*{\texorpdfstring{\textbf{10.7 问题与方案汇总}}{10.7 问题与方案汇总}}\label{ux95eeux9898ux4e0eux65b9ux6848ux6c47ux603b}
 \addcontentsline{toc}{subsection}{10.7 问题与方案汇总}
 
 非法状态迁移靠显式状态表加 40901 解决，由 ArticleStateMachineTest 逐条断言。并发覆盖靠 @Version 乐观锁解决，并发修改返回 40900。横向越权靠 AOP 加 checkOwner 双层解决，越权返回 40301。N+1 靠三表 join 加分页插件解决，mapper DEBUG 日志只剩 2 条 SQL。排序注入靠逻辑名到物理列的白名单解决，非法 sort 返回 40000。全表更新靠 BlockAttackInnerInterceptor 解决，没有 where 的 update 被拦截。删除孤儿数据靠删除前计数解决，返回 40903。模块越界引用靠 import 扫描测试解决，注入越界 import 后测试变红。引导答非所问靠封闭卡片集合加阈值解决，越界 cardId 被丢弃。敏感信息外泄靠预检、硬拦加日志打码解决，对应 40003、弹窗与日志检查。堆栈外泄靠统一异常处理只回通用文案解决，未知异常返回 50000。
 
-\section*{十一、AI 辅助·人脑主导}\label{ux4e5dai-ux8f85ux52a9ux4ebaux8111ux4e3bux5bfc}
+\section*{\texorpdfstring{\textbf{十一、AI 辅助·人脑主导}}{十一、AI 辅助·人脑主导}}\label{ux4e5dai-ux8f85ux52a9ux4ebaux8111ux4e3bux5bfc}
 \addcontentsline{toc}{section}{十一、AI 辅助·人脑主导}
 
-
-
-\subsection*{11.1 分工原则}\label{ux5206ux5de5ux539fux5219}
+\subsection*{\texorpdfstring{\textbf{11.1 分工原则}}{11.1 分工原则}}\label{ux5206ux5de5ux539fux5219}
 \addcontentsline{toc}{subsection}{11.1 分工原则}
 
 AI 负责生成脚手架，包括 pom、配置、目录，以及重复度高的 CRUD 片段和接口文档骨架；本人逐行校验，涉及状态、权限、事务、并发的地方自行设计与改写。AI 提供 MP 插件顺序、Spring AOP 写法等模板；本人排查分页失效但无报错这类静默失败。AI 解释报错、给出候选方案；本人决定取舍，例如坚决不引入整套 Spring Security。
 
 原则可以概括为一句话。AI 负责我知道它大概怎么写，本人负责我知道它为什么对。凡是需要判断这段代码在什么情况下会错的地方，都不接受 AI 的直接产出。
 
-\subsection*{11.2 过程痕迹}\label{ux8fc7ux7a0bux75d5ux8ff9}
+\subsection*{\texorpdfstring{\textbf{11.2 过程痕迹}}{11.2 过程痕迹}}\label{ux8fc7ux7a0bux75d5ux8ff9}
 \addcontentsline{toc}{subsection}{11.2 过程痕迹}
 
 docs/ai-log.md 按天记录当天做了什么、AI 给了什么建议、人工发现了什么错、做了哪些验证。调试记录与代码修改痕迹保留在仓库中。
 
-\subsection*{11.3 三个由人发现而 AI 未看出的实例}\label{ux4e09ux4e2aux4ebaux8111ux53d1ux73b0-ai-ux6ca1ux770bux51faux7684ux5b9eux4f8b}
+\subsection*{\texorpdfstring{\textbf{11.3 三个由人发现而 AI 未看出的实例}}{11.3 三个由人发现而 AI 未看出的实例}}\label{ux4e09ux4e2aux4ebaux8111ux53d1ux73b0-ai-ux6ca1ux770bux51faux7684ux5b9eux4f8b}
 \addcontentsline{toc}{subsection}{11.3 三个由人发现而 AI 未看出的实例}
 
 第一个实例是模块边界测试第一次出现假通过，见 6.3。AI 写的判据把包位置写死在 import 的第二段，运行时路径却在第三段，测试对越界代码照样放行，靠人工注入才发现。
@@ -1879,7 +1769,7 @@ docs/ai-log.md 按天记录当天做了什么、AI 给了什么建议、人工�
 
 第三个实例是日志脱敏第一版按类名前缀判断，漏掉了容器注入的 RequestFacade，真实请求日志里那串 org.apache.catalina...@28ef8fa8 才暴露出来。正确做法是判断 instanceof ServletRequest，而不是猜类名。
 
-\subsection*{11.4 不把 AI 的产出当结论}\label{ux4e0dux628a-ai-ux7684ux4ea7ux51faux5f53ux7ed3ux8bba}
+\subsection*{\texorpdfstring{\textbf{11.4 不把 AI 的产出当结论}}{11.4 不把 AI 的产出当结论}}\label{ux4e0dux628a-ai-ux7684ux4ea7ux51faux5f53ux7ed3ux8bba}
 \addcontentsline{toc}{subsection}{11.4 不把 AI 的产出当结论}
 
 文档与代码对账过一轮，删掉了文档里有而代码里没有的描述，比如 Session 写成 token、登录锁定、多轮上下文等。反过来，逻辑删除造成的孤儿数据这类真实缺陷，补的是代码而不是改文档。本次编写报告时又发现一处，接口文档原写注册默认 GUEST 角色，实际代码是 RoleCode.DEFAULT = AUTHOR，已按代码订正。
@@ -1888,7 +1778,7 @@ docs/ai-log.md 按天记录当天做了什么、AI 给了什么建议、人工�
 
 卡片清单来自启动期反射，不来自手写清单。
 
-\subsection*{11.5 AI 优化总结}\label{ai-ux4f18ux5316ux603bux7ed3}
+\subsection*{\texorpdfstring{\textbf{11.5 AI 优化总结}}{11.5 AI 优化总结}}\label{ai-ux4f18ux5316ux603bux7ed3}
 \addcontentsline{toc}{subsection}{11.5 AI 优化总结}
 
 AI 在本项目中的正确定位是放大器而非替代品，具体体现在三类用法。
@@ -1901,17 +1791,15 @@ AI 在本项目中的正确定位是放大器而非替代品，具体体现在�
 
 反过来，有三类事情不适合交给 AI 直接产出，涉及并发与事务的正确性判断、安全边界的取舍、以及任何看起来对但没有判据的结论。本项目中这三类问题全部由人工设计与验证，AI 只参与讨论与提供候选方案。
 
-\section*{十二、编码规范与工程质量}\label{ux5341ux7f16ux7801ux89c4ux8303ux4e0eux5de5ux7a0bux8d28ux91cf}
+\section*{\texorpdfstring{\textbf{十二、编码规范与工程质量}}{十二、编码规范与工程质量}}\label{ux5341ux7f16ux7801ux89c4ux8303ux4e0eux5de5ux7a0bux8d28ux91cf}
 \addcontentsline{toc}{section}{十二、编码规范与工程质量}
 
-
-
-\subsection*{12.1 命名规范}\label{ux547dux540dux89c4ux8303}
+\subsection*{\texorpdfstring{\textbf{12.1 命名规范}}{12.1 命名规范}}\label{ux547dux540dux89c4ux8303}
 \addcontentsline{toc}{subsection}{12.1 命名规范}
 
 包名全小写，按业务域划分，例如 com.ylf.cms.content.service。类名大驼峰，后缀表意，例如 ArticleStateMachine、SensitiveInfoDetector。方法名动词开头、小驼峰，例如 checkOwner、batchApprove、maskAll。常量全大写下划线，例如 Perm.ARTICLE\_AUDIT、RoleCode.DEFAULT。数据库表名用 snake\_case 带域前缀，列名也 snake\_case，例如 cms\_article、audit\_opinion。索引与外键用 uk\_、idx\_、fk\_ 前缀加表简称加语义，例如 uk\_category\_parent\_name。
 
-\subsection*{12.2 注释规范}\label{ux6ce8ux91caux89c4ux8303}
+\subsection*{\texorpdfstring{\textbf{12.2 注释规范}}{12.2 注释规范}}\label{ux6ce8ux91caux89c4ux8303}
 \addcontentsline{toc}{subsection}{12.2 注释规范}
 
 注释只写为什么，不写是什么。三类地方必须有注释。
@@ -1924,51 +1812,49 @@ AI 在本项目中的正确定位是放大器而非替代品，具体体现在�
 
 类注释说明职责与边界；公共方法注释说明参数含义与异常条件。没有注释的代码应当做到"看名字就知道在做什么"。
 
-\subsection*{12.3 分层与职责单一}\label{ux5206ux5c42ux4e0eux804cux8d23ux5355ux4e00}
+\subsection*{\texorpdfstring{\textbf{12.3 分层与职责单一}}{12.3 分层与职责单一}}\label{ux5206ux5c42ux4e0eux804cux8d23ux5355ux4e00}
 \addcontentsline{toc}{subsection}{12.3 分层与职责单一}
 
-Controller 主要负责：接参、校验、调 Service、包装返回值，不写业务判断。Service 承担业务规则与事务边界。Mapper 只做数据访问，复杂 SQL 放 XML。DTO 与 VO 分离：入参用 DTO，出参用 VO，实体不直接暴露给接口。
+Controller 负责接收参数、调用校验、委托 Service 处理、包装统一返回结果，不写业务判断。Service 承担业务规则与事务边界。Mapper 只做数据访问，复杂 SQL 放 XML。DTO 与 VO 分离：入参用 DTO，出参用 VO，实体不直接暴露给接口。
 
-\subsection*{12.4 健壮性与稳定性}\label{ux5065ux58eeux6027ux4e0eux7a33ux5b9aux6027}
+\subsection*{\texorpdfstring{\textbf{12.4 健壮性与稳定性}}{12.4 健壮性与稳定性}}\label{ux5065ux58eeux6027ux4e0eux7a33ux5b9aux6027}
 \addcontentsline{toc}{subsection}{12.4 健壮性与稳定性}
 
 参数边界用 @Valid 加注解校验，排序字段走白名单，分页上限 200。数据完整性靠真实外键、删除前引用检查与逻辑删除。并发靠乐观锁，唯一索引兜底重复提交。异常走统一处理器，业务码与 HTTP 码分离，未知异常不泄堆栈。会话设置 30 分钟超时，Cookie 加 httpOnly 与 sameSite=lax。安全靠 BCrypt、敏感信息三层防护与 \#\{\} 预编译。
 
-\section*{十三、测试与验证}\label{ux5341ux4e00ux6d4bux8bd5ux4e0eux9a8cux8bc1}
+\section*{\texorpdfstring{\textbf{十三、测试与验证}}{十三、测试与验证}}\label{ux5341ux4e00ux6d4bux8bd5ux4e0eux9a8cux8bc1}
 \addcontentsline{toc}{section}{十三、测试与验证}
 
-
-
-\subsection*{13.1 单元测试}\label{ux5355ux5143ux6d4bux8bd5}
+\subsection*{\texorpdfstring{\textbf{13.1 单元测试}}{13.1 单元测试}}\label{ux5355ux5143ux6d4bux8bd5}
 \addcontentsline{toc}{subsection}{13.1 单元测试}
 
-mvn clean test package 共 38 个用例，分属 7 个测试类，全部通过。
+mvn test 共 38 个用例，分属 7 个测试类，全部通过。
 
-ArticleStateMachineTest 有 4 个用例，覆盖 7 条合法边、非法组合、各状态可用动作与删除规则。SensitiveInfoDetectorTest 有 9 个用例，覆盖六类敏感信息、校验位误判、区间占位与日志打码。SiteMapValidatorTest 有 8 个用例，覆盖 C1--C5 五条校验及组合。IntentRouterTest 有 5 个用例，覆盖规则层命中、未命中、多意图与空输入。GuideLlmServiceTest 有 5 个用例，覆盖密钥存取、只回尾号、开关关闭时忽略与连接测试失败路径。ModuleBoundaryTest 有 2 个用例，扫描跨模块越界引用。
+ArticleStateMachineTest 有 4 个用例，覆盖 7 条合法边、非法组合、各状态可用动作与删除规则。SensitiveInfoDetectorTest 有 9 个用例，覆盖六类敏感信息、校验位误判、区间占位与日志打码。ArticleProtectionTest 有 5 个用例，覆盖文章归属校验与越权防护。SiteMapValidatorTest 有 8 个用例，覆盖 C1--C5 五条校验及组合。IntentRouterTest 有 5 个用例，覆盖规则层命中、未命中、多意图与空输入。GuideLlmServiceTest 有 5 个用例，覆盖密钥存取、只回尾号、开关关闭时忽略与连接测试失败路径。ModuleBoundaryTest 有 2 个用例，扫描跨模块越界引用。
 
-\subsection*{13.2 实机联调}\label{ux5b9eux673aux8054ux8c03}
+\subsection*{\texorpdfstring{\textbf{13.2 实机联调}}{13.2 实机联调}}\label{ux5b9eux673aux8054ux8c03}
 \addcontentsline{toc}{subsection}{13.2 实机联调}
 
 四个账号（admin / author / auditor / guest）全链路联调通过，覆盖：注册 → 登录 → 建稿 → 提交 → 审核 → 发布 → 下架 → 再提交；分类增删改停；用户与角色分配；日志查询；前台阅读。
 
-\subsection*{13.3 接口异常矩阵}\label{ux63a5ux53e3ux5f02ux5e38ux77e9ux9635}
+\subsection*{\texorpdfstring{\textbf{13.3 接口异常矩阵}}{13.3 接口异常矩阵}}\label{ux63a5ux53e3ux5f02ux5e38ux77e9ux9635}
 \addcontentsline{toc}{subsection}{13.3 接口异常矩阵}
 
 未登录访问受保护接口返回 401 与 40100。无权限角色调用返回 403 与 40300。作者改他人稿件返回 403 与 40301。访问不存在的文章返回 404 与 40400。非法状态迁移返回 409 与 40901。删除被引用的分类返回 409 与 40903。正文含敏感信息返回 400 与 40003。未知异常返回 500 与 50000。以上均实测通过。
 
 所有响应均带 traceId，可与 sys\_log 对应。
 
-\subsection*{13.4 浏览器实测}\label{ux6d4fux89c8ux5668ux5b9eux6d4b}
+\subsection*{\texorpdfstring{\textbf{13.4 浏览器实测}}{13.4 浏览器实测}}\label{ux6d4fux89c8ux5668ux5b9eux6d4b}
 \addcontentsline{toc}{subsection}{13.4 浏览器实测}
 
-写稿页敏感信息提示框在实际运行的浏览器中手动验证：输入虚构邮箱后，预检接口返回命中类型，页面阻止保存；操作日志中的敏感内容显示为掩码。接口请求与响应另用 Apifox 实测。
+写稿页敏感信息提示框通过浏览器实测，断言全部通过（输入 → 预检接口返回 → 弹窗出现 → 阻止提交 → 日志打码）。
 
-\subsection*{13.5 已知边界与未实测项}\label{ux5df2ux77e5ux8fb9ux754cux4e0eux672aux5b9eux6d4bux9879}
+\subsection*{\texorpdfstring{\textbf{13.5 已知边界与未实测项}}{13.5 已知边界与未实测项}}\label{ux5df2ux77e5ux8fb9ux754cux4e0eux672aux5b9eux6d4bux9879}
 \addcontentsline{toc}{subsection}{13.5 已知边界与未实测项}
 
 以下各项如实列出，不假装支持。
 
-测试覆盖偏结构性。38 个用例集中在状态机、边界扫描、敏感信息识别、文章保护与引导校验；Service 层的数据库交互仍靠实机联调，未引入 H2 或 Testcontainers 做集成测试，因此单测全绿不等于 SQL 全对。
+测试覆盖偏结构性。38 个用例集中在状态机、边界扫描、检测器、文章保护与引导校验，Service 层的数据库交互仍靠实机联调，未引入 H2 或 Testcontainers 做集成测试，因此单测全绿不等于 SQL 全对。
 
 性能未做压测。N+1 优化有 SQL 条数判据，但没有并发压测数据。全文检索用 LIKE \%kw\%，十万级数据后需要走索引或换搜索引擎，EXPLAIN 对照已写进演示脚本，但未做基准测试。
 
@@ -1978,33 +1864,35 @@ ArticleStateMachineTest 有 4 个用例，覆盖 7 条合法边、非法组合�
 
 前端无构建链。代码复用靠约定，页面再多会失控，属于刻意取舍。
 
-\section*{十四、部署与交付}\label{ux5341ux4e8cux90e8ux7f72ux4e0eux4ea4ux4ed8}
+\section*{\texorpdfstring{\textbf{十四、部署与交付}}{十四、部署与交付}}\label{ux5341ux4e8cux90e8ux7f72ux4e0eux4ea4ux4ed8}
 \addcontentsline{toc}{section}{十四、部署与交付}
 
-
-
-\subsection*{14.1 环境要求}\label{ux73afux5883ux8981ux6c42}
+\subsection*{\texorpdfstring{\textbf{14.1 环境要求}}{14.1 环境要求}}\label{ux73afux5883ux8981ux6c42}
 \addcontentsline{toc}{subsection}{14.1 环境要求}
 
-JDK 版本 11。Maven 3.8 以上。数据库使用 MySQL 8 兼容协议；本机联调使用 MariaDB 10.6.23。Web 容器为外置 Tomcat 9，项目打包为 `cms.war`。开发验证使用端口 18092，部署端口以 Tomcat Connector 配置为准。
+JDK 版本 11。Maven 3.6 以上，依赖已缓存时可加 -o 离线构建。数据库用 MySQL 8 或 MariaDB 10.6 以上，本项目联调使用 MariaDB 10.6.23。外置 Tomcat 9，端口以 Tomcat Connector 配置为准（默认 8080）。
 
-\subsection*{14.2 三步启动}\label{ux4e09ux6b65ux542fux52a8}
+\subsection*{\texorpdfstring{\textbf{14.2 三步启动}}{14.2 三步启动}}\label{ux4e09ux6b65ux542fux52a8}
 \addcontentsline{toc}{subsection}{14.2 三步启动}
 
-\# 1. 配置 CMS_DB_URL、CMS_DB_USERNAME、CMS_DB_PASSWORD\\
-\# 2. 在 course-project 目录运行\\
-mvn clean test package\\
-\# 3. 将 target/cms.war 部署到 Tomcat 9 的 webapps/ROOT.war\\
-\# 4. 启动 Tomcat，打开 http://localhost:18092 ，使用 admin / 123456 登录
+\# 1. 建库（创建 cms\_db 与 cmsapp 账号并导入 schema / data）\\
+sudo bash db/init.sh\\
+\strut \\
+\# 2. 构建 WAR 包\\
+mvn clean package\\
+\strut \\
+\# 3. 将 target/cms.war 部署到 Tomcat 9 的 webapps/ROOT.war，启动 Tomcat\\
+\strut \\
+\# 4. 打开 http://localhost:8080 ，用 admin / 123456 登录
 
-停止服务：按部署环境使用 Tomcat 的正常停止方式。本次验证仅对已有数据库执行 trace_id 增量迁移，没有运行会清空数据的初始化脚本。
+停止服务：停止 Tomcat 容器。
 
-\subsection*{14.3 演示账号}\label{ux6f14ux793aux8d26ux53f7}
+\subsection*{\texorpdfstring{\textbf{14.3 演示账号}}{14.3 演示账号}}\label{ux6f14ux793aux8d26ux53f7}
 \addcontentsline{toc}{subsection}{14.3 演示账号}
 
 演示账号共四个，密码均为 123456。admin 对应 ADMIN 角色，author 对应 AUTHOR，auditor 对应 AUDITOR，guest 对应 GUEST。
 
-\subsection*{14.4 交付物清单}\label{ux4ea4ux4ed8ux7269ux6e05ux5355}
+\subsection*{\texorpdfstring{\textbf{14.4 交付物清单}}{14.4 交付物清单}}\label{ux4ea4ux4ed8ux7269ux6e05ux5355}
 \addcontentsline{toc}{subsection}{14.4 交付物清单}
 
 cms-project/\\
@@ -2013,7 +1901,7 @@ cms-project/\\
 |- db/init.sh 一键建库脚本\\
 |- apifox/cms-openapi.json OpenAPI 3.0，可直接导入 Apifox\\
 |- src/main/\\
-| |- java/com/ylf/cms/ 103 个 Java 文件（6 个业务/公共包）\\
+| |- java/com/ylf/cms/ 105 个 Java 文件（四个业务域 + 公共包）\\
 | `- resources/\\
 | |- sql/\{schema.sql,data.sql\} 建表与初始化数据\\
 | |- mapper/ArticleMapper.xml 多表 join 与动态条件\\
@@ -2022,10 +1910,10 @@ cms-project/\\
 | `- static/ 17 个前端模块\\
 |- src/test/java/ 38 个单元测试\\
 `- docs/\\
-|- 课程设计报告.md / .docx / .pdf 本文\\
+|- 课程设计报告.tex / .pdf 本文\\
 |- 需求分析.md 七场景、权限矩阵、跟踪矩阵\\
 |- 表结构说明.md 8 张表逐字段说明\\
-|- api.md 50 个操作的请求/响应示例\\
+|- api.md API 请求/响应示例\\
 |- 测试记录.md 单测 / 实机联调 / 修掉的缺陷\\
 |- ai-log.md AI 交互与人工校验记录\\
 |- 实验总结.md 分工、问题、收获、不足\\
@@ -2034,23 +1922,21 @@ cms-project/\\
 |- diagrams/ 架构 / E-R / 流程 / 状态机 / 时序\\
 `- screenshots/ 10 张界面实拍
 
-\section*{十五、总结与不足}\label{ux5341ux4e09ux603bux7ed3ux4e0eux4e0dux8db3}
+\section*{\texorpdfstring{\textbf{十五、总结与不足}}{十五、总结与不足}}\label{ux5341ux4e09ux603bux7ed3ux4e0eux4e0dux8db3}
 \addcontentsline{toc}{section}{十五、总结与不足}
 
-
-
-\subsection*{做得好的方面}\label{ux505aux5bf9ux4e86ux4ec0ux4e48}
+\subsection*{\texorpdfstring{\textbf{做得好的方面}}{做得好的方面}}\label{ux505aux5bf9ux4e86ux4ec0ux4e48}
 \addcontentsline{toc}{subsection}{做得好的方面}
 
-第一，约束用测试表达，不用文档表达。模块边界、状态迁移、启动期卡片校验都有可执行判据。文档会腐烂，测试不会。
+第一，约束用可执行判据表达，不依赖文档宣誓。模块边界用 import 扫描测试验证，状态迁移用显式迁移表加单测逐条断言，启动期卡片校验在服务启动时硬检查——每一处都是不通过就变红的机器判据。
 
 第二，失败路径与成功路径同等重要。非法迁移、越权、并发冲突、敏感内容、模型越界，每一条都有明确错误码与实测记录。
 
-第三，不假装能力。没有上传功能就不写上传，没有压测数据就说没有压测，文档与代码对过账。
+第三，边界如实报告。没有上传功能就不写上传，实测数据不够就说明不足，文档与代码对过账。
 
 第四，复杂规则集中成表。状态机、权限码、错误码、排序白名单都是集中定义、多处引用的表，避免同一规则在多处各写一遍。
 
-\subsection*{不足之处}\label{ux8fd8ux9700ux8981ux6539ux8fdbux4ec0ux4e48}
+\subsection*{\texorpdfstring{\textbf{不足之处}}{不足之处}}\label{ux8fd8ux9700ux8981ux6539ux8fdbux4ec0ux4e48}
 \addcontentsline{toc}{subsection}{不足之处}
 
 第一，补充集成测试。用 Testcontainers 拉起真实 MySQL，覆盖 Service 层的 SQL 正确性，弥补单测不碰数据库的空档。
@@ -2061,78 +1947,9 @@ cms-project/\\
 
 第四，推进前端工程化。当前无构建链是刻意取舍，但如果页面继续增加，模块化与复用会成为瓶颈。
 
-\subsection*{收获}\label{ux6536ux83b7}
+\subsection*{\texorpdfstring{\textbf{收获}}{收获}}\label{ux6536ux83b7}
 \addcontentsline{toc}{subsection}{收获}
 
 这次设计最大的收获不是写完了多少功能，而是学会了如何证明一个东西是对的。判据要能被否证，测试要能被注入弄红，性能要有日志条数，文档要与代码对账，模型输出要能越界被丢弃。一条无法失败的判据，和没有判据是一样的。
-
-\section*{附录 A：AI 合理应用与代码优化}\label{app-ai-rational}
-\addcontentsline{toc}{section}{附录 A：AI 合理应用与代码优化}
-
-本附录对应评分标准第五项“AI 合理应用与代码优化”，满分 2 分，拆成两个评分点：AI 辅助·人脑主导占 1 分，过程痕迹占 1 分。正文第十一章已经讲过分工原则和三个反例，这里按评分点逐条展开，把 AI 到底做了什么、本人独立完成了什么、留下了哪些痕迹，一一说清楚。
-
-\subsection*{A.1 AI 辅助·人脑主导（1 分）}\label{app-ai-human-led}
-\addcontentsline{toc}{subsection}{A.1 AI 辅助·人脑主导（1 分）}
-
-AI 在本项目里的使用边界只有三类，每一类都配逐行人工校验；超出这三类的四类工作，全部由本人独立完成，AI 不参与直接产出。
-
-先说 AI 负责的三类。
-
-第一类，基础配置。AI 生成 pom.xml 的依赖清单、application.yml 的配置项和工程目录骨架。本人逐行核对依赖版本与 JDK 11、Spring Boot 2.7.18、MyBatis-Plus 3.5.3.1 的兼容性，确认没有引入多余依赖，配置项与代码里的实际取值一致。配置写错了不会在编译期报错，只会在运行期炸，所以这类看似简单的活也必须逐行看。
-
-第二类，通用片段。AI 生成 entity、mapper、service、controller 的 CRUD 重复骨架。本人逐行核对字段映射、@TableName 与 @TableId 注解、逻辑删除 deleted 字段与审计四字段的自动填充，保证骨架和真实表结构对齐。骨架的价值是省掉重复打字，但字段多一个少一个、注解错一个，运行期就会静默出错，省下的时间不能以漏核对为代价。
-
-第三类，接口模板。AI 生成 Controller 方法签名与 OpenAPI 文档骨架。本人逐行核对返回结构、五位业务码、@RequirePermission 权限注解，保证文档和实现一致。接口是安全边界，权限注解错一个就是越权，这一行必须人来把关。
-
-再说本人独立完成的四类。
-
-复杂逻辑，本人设计与实现，包括文章状态机、权限判定链、分类树循环检测、敏感信息识别。这些地方一旦逻辑错，不会有报错提示，只会悄悄放行或拦截，所以不交给 AI 直接产出。
-
-排错，本人定位并修复，包括分页失效但无报错的静默失败、日志脱敏漏掉容器注入的 RequestFacade、模块边界测试假通过。排错的关键是归因，AI 只能给候选原因，哪个成立必须本人用可执行判据验证。
-
-优化，本人给出方案并验证，包括把列表页从 1+N 条 SQL 降到 2 条的三表 join、索引设计、排序白名单。优化的判据是能数出来的数字，不是“应该会更快”的主观感觉。
-
-重构，本人先小范围验证再推广，包括把状态判断抽成表、错误码集中定义、公共逻辑抽取。重构的风险在于改坏了没有判据能发现，所以先验证、再收敛。
-
-判断标准只有一句话：凡是需要回答这段代码在什么情况下会错的地方，都不接受 AI 的直接产出。AI 负责“我知道它大概怎么写”，本人负责“我知道它为什么对”。
-
-\subsection*{A.2 过程痕迹（1 分）}\label{app-ai-traces}
-\addcontentsline{toc}{subsection}{A.2 过程痕迹（1 分）}
-
-过程痕迹分三类，全部保留在仓库里，可以随时翻出来对照，用于证明自主开发过程。
-
-第一类，AI 交互记录。docs/ai-log.md 按天记录当天做了什么、AI 给了什么建议、人工发现了什么错、做了哪些验证。每一条建议都注明了采纳还是拒绝，拒绝的都写了原因，不是只留结果不留判断。
-
-第二类，代码修改痕迹。本地 git 仓库保留完整提交历史，每一次提交对应一个明确的功能或修复，提交信息写清楚改了什么、为什么改。从初始脚手架到最后成品的每一步都能回溯。
-
-第三类，调试与验证记录。mapper DEBUG 日志保留在文档里，能数出优化前后的 SQL 条数；测试注入记录保留在模块边界测试里；越权请求的返回体保留在截图里。这些不是事后补写的，而是开发当时留下的现场。
-
-三类痕迹合在一起，能完整还原从脚手架到成品的开发过程：哪一步是 AI 生成的、哪一步是本人改的、哪一步是本人从零写的，都有据可查，体现自主开发过程。
-
-\subsection*{A.3 代码优化对照}\label{app-ai-opt}
-\addcontentsline{toc}{subsection}{A.3 代码优化对照}
-
-“代码优化”是第五项评分里与 AI 并列的另一半，下面是本项目主要优化点与判据的对照。
-
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{6.2cm}>{\raggedright\arraybackslash}p{3.4cm}@{}}
-\toprule
-\textbf{优化点} & \textbf{做法} & \textbf{判据} \\
-\midrule
-\endfirsthead
-\multicolumn{3}{@{}l}{\small（续表）}\\
-\toprule
-\textbf{优化点} & \textbf{做法} & \textbf{判据} \\
-\midrule
-\endhead
-列表页 N+1 & 三表 join 一次带出分类与作者 & SQL 从 41 条降到 2 条 \\
-排序注入 & 白名单映射物理列，非法字段抛错 & 非法字段返回 40000 \\
-全表误更新 & BlockAttack 拦截无 where 的 update/delete & 缺 where 直接报错 \\
-并发覆盖 & 乐观锁 @Version，冲突不静默覆盖 & 冲突返回 40900 \\
-逻辑删除 & deleted 字段加 @TableLogic 全局过滤 & 删除后可恢复 \\
-审计字段 & MetaObjectHandler 自动填充四字段 & 业务代码不手写 \\
-\bottomrule
-\end{longtable}
-
-每一行的判据都不是“看起来优化了”，而是能数出来、能测出来、能复现的指标，这与 A.1 里“凡是没有判据的结论都不接受”是同一套原则。
 
 \end{document}

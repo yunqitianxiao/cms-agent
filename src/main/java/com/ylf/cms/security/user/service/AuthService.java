@@ -1,7 +1,7 @@
 package com.ylf.cms.security.user.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.ylf.cms.security.LoginUser;
+import com.ylf.cms.common.security.LoginUser;
 import com.ylf.cms.common.constant.RoleCode;
 import com.ylf.cms.common.exception.BizException;
 import com.ylf.cms.common.result.ResultCode;

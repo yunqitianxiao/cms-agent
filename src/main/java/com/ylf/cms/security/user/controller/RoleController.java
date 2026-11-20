@@ -1,9 +1,11 @@
 package com.ylf.cms.security.user.controller;
 
-import com.ylf.cms.common.annotation.GuideCard;
+import com.ylf.cms.common.annotation.OperLog;
 import com.ylf.cms.common.annotation.RequirePermission;
+import com.ylf.cms.common.constant.LogType;
 import com.ylf.cms.common.constant.Perm;
 import com.ylf.cms.common.result.Result;
+import com.ylf.cms.common.annotation.GuideCard;
 import com.ylf.cms.security.user.dto.PermissionAssignRequest;
 import com.ylf.cms.security.user.dto.RoleSaveRequest;
 import com.ylf.cms.security.user.service.RoleService;
@@ -22,12 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.validation.Valid;
 import java.util.List;
 
-/**
- * 角色与权限。
- *
- * 写接口上的 @OperLog 留到 D8（日志落库）再加——现在加了也没有切面接收，
- * 只会让"日志没记上"这件事看起来像 bug。
- */
 @RestController
 @RequestMapping("/api/roles")
 @RequiredArgsConstructor
@@ -52,12 +48,14 @@ public class RoleController {
 
     @PostMapping
     @RequirePermission(Perm.ROLE_MANAGE)
+    @OperLog(type = LogType.ROLE, value = "新增角色")
     public Result<Long> create(@Valid @RequestBody RoleSaveRequest request) {
         return Result.ok(roleService.create(request));
     }
 
     @PutMapping("/{id}")
     @RequirePermission(Perm.ROLE_MANAGE)
+    @OperLog(type = LogType.ROLE, value = "修改角色")
     public Result<Void> update(@PathVariable Long id, @Valid @RequestBody RoleSaveRequest request) {
         roleService.update(id, request);
         return Result.ok();
@@ -65,6 +63,7 @@ public class RoleController {
 
     @PutMapping("/{id}/permissions")
     @RequirePermission(Perm.ROLE_MANAGE)
+    @OperLog(type = LogType.ROLE, value = "分配角色权限")
     public Result<Void> assignPermissions(@PathVariable Long id,
                                           @Valid @RequestBody PermissionAssignRequest request) {
         roleService.assignPermissions(id, request.getPermIds());
@@ -73,6 +72,7 @@ public class RoleController {
 
     @DeleteMapping("/{id}")
     @RequirePermission(Perm.ROLE_MANAGE)
+    @OperLog(type = LogType.ROLE, value = "删除角色")
     public Result<Void> delete(@PathVariable Long id) {
         roleService.delete(id);
         return Result.ok();

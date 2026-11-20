@@ -1,148 +1,261 @@
-# AI 使用日志
+# AI 交互与人工校验记录
 
-按天记录：做了什么、为什么这么做、卡在哪、怎么解决的。
+> 对应评分点：五、AI 合理应用与代码优化（2 分）——「AI 辅助·人脑主导」「过程痕迹」。
+> 规则：每天收工前追加一条，写清「AI 做了什么 / 我判断了什么 / 我改了什么」。
+> 只记录能对应到文件的内容，不写「今天让 AI 帮我做个项目」这种无法核查的描述。
 
-## D1 · 2026-11-01 · 仓库骨架
+---
 
-**做了什么**：建仓库、`pom.xml`、`CmsApplication`、`application.yml`、README 与本计划。
+## D1 · 2026-10-19 · 需求分析文档 + 业务流程图
 
-**为什么单独成仓**：智能体是"横切"模块——它要读全站的卡片、权限码和统计数字。放在主仓里时，`@GuideCard` 如果写在 `ops` 包内，M1–M3 的每个 Controller 都要 import 智能体模块，等于被观测者依赖观测者。所以注解放在 `common`，`ops` 只读不写。这个边界决定了本仓库的依赖面：`common` 必带，`security` 必带（要权限码判断"这个用户能不能看这张卡"），`catalog`、`content` 各带一个 Service（建议里的分类与文章数字）。
+**AI 参与部分**
 
-**卡点**：`ops` 单独拎出来编译不过——它 import 了 `LoginUser`、`RoleService`、`CategoryService`、`ArticleService`。核对了一遍依赖：`common` 27 处、`security` 7 处、`catalog`/`content` 各 1 处。结论是"M4 独立仓库"实际等于"整个后端"（除前端页面外），这决定了 15 天的切法：先上公共层，最后才轮到智能体本身。
+| 产出 | AI 做了什么 | 人工判断与修改 |
+|---|---|---|
+| `docs/需求分析.md` | 按评分表 7 个场景搭出章节骨架，填充主流程与异常分支表格 | 待逐条校验（见下） |
+| `docs/diagrams/business-flow.dot` | 生成 graphviz 源码并渲染 PNG | 待校验流程是否与实现一致 |
+| `docs/diagrams/article-lifecycle.dot` | 生成文章状态机图与迁移表 | 待校验状态与角色权限 |
 
-**安全**：原项目的 `application.yml` 里写着数据库明文口令。本仓库改成 `${CMS_DB_USER}` / `${CMS_DB_PASSWORD}` 占位，`.env` 与 `*.log` 进 `.gitignore`。判据是"仓库里搜不到口令"：拿原口令去 `git grep`，必须 0 命中（这条能失败——把口令原样贴回来就会命中）。
+**我做的判断（待补，每条一句话）**
 
-## D2 · 2026-11-02 · 公共层·结果与异常
+- [ ] 角色划分是否合适（4 个角色是否过多 / 过少）
+- [ ] 认证方案：JWT 还是 Session —— 见文档 Q-01
+- [ ] 分类深度限定 3 级是否合理 —— 见文档 Q-02（题面未规定）
+- [ ] 审核记录是否单独建表 —— 见文档 Q-04（评分表写「六表」，暂不新增）
+- [ ] 异常分支里哪些是真实要实现的、哪些只是文档完备性
 
-**做了什么**：`Result`、`ResultCode`、`BizException`、`GlobalExceptionHandler` 四个类从主工程原样搬入，另加一个不启 Spring 上下文的 `GlobalExceptionHandlerTest`（两个用例：未捕获异常、业务异常）。
+**我改了什么（待补）**
 
-**为什么这一块排第二**：后面每个模块抛错都走这四个类，改它们的时机越晚返工面越大。`ResultCode` 把业务码（5 位分段）和 HTTP 状态码分开——智能体的卡片校验失败是"业务上没这张页"，不是"服务器坏了"，两者混用会让前端只能靠字符串猜。
+- （暂无，初稿由 AI 生成，等待人工逐条校验后回填）
 
-**判据**：构造一个消息里带 `select * from sys_user where password = 'admin'`、cause 里带 `.java:88` 堆栈帧的未捕获异常，断言响应体里搜不到 `select` / `SQL` / `java.` / `IllegalState` / `at com.ylf` / `sys_user` / `password`。
+**本日遗留**
 
-**这条判据真的能红**：把 `handleOther` 临时改成 `Result.fail(ResultCode.INTERNAL, e.toString())`，测试立即失败，报错原文就是整条 SQL：
+- 文档中的 4 个待确认问题需在 D2 前定稿，否则会影响建表与接口设计。
 
-> 响应体泄露了「select」：{"code":50000,"message":"java.lang.IllegalStateException: nested exception is java.sql.SQLException: select * from sys_user where password = 'admin'", ...}
+---
 
-验证完已改回。`mvn -o package` 绿，`Tests run: 2, Failures: 0`。
+## D2 · 2026-10-27 · 从任务书到可运行工程
 
-## D3 · 2026-11-04 · 公共层·校验与工具
+**AI 参与部分**
 
-**做了什么**：`PageQuery` / `PageResult`、`TraceIdFilter`、`@GuideCard`、`IpUtil` / `MaskUtil` / `SortWhitelist` 原样搬入，新增两个测试类（`PageQueryValidationTest` 3 条、`CommonLayerTest` 9 条）。
+| 产出 | AI 做了什么 | 人工判断与修改 |
+|---|---|---|
+| `schema.sql` / `data.sql` / `db/init.sh` | 按六主表 + 两关联表建库，造 5 个账号、10 个分类、20 篇覆盖五种状态的文章 | 表数量与评分表"六表"核对；演示数据是否够演完状态机 |
+| `auth/` 包 | 拦截器 + `@RequirePermission` 切面 + 日志切面 + `UserContext` | 切面顺序是否保证"被 403 拦下也留日志" |
+| `guide/` 包 | 启动期反射采集站点地图、C1–C5 校验、bigram 规则路由、可选 LLM 通道 | C2 粒度、校验失败是否真的阻止启动 |
+| 前端 11 个页面 + 引导对话框 | Thymeleaf + 原生 ES Modules，卡片式引导 | 各页面操作是否与状态机一致 |
+| 17 个单元测试 | 状态机 7 条边、校验规则 C1–C5 各一条、意图路由命中和落空 | 测试是否只验证了"合法输入不报错" |
 
-**为什么这一块排第三**：分页参数和异常处理是一对——D2 只保证"出错时怎么说"，D3 才保证"什么时候算错"。`pageSize` 不设上限不会报错，只会让一次列表请求把整张表读进内存，这类问题在演示时看不出来、在数据量上来时才发现。`SortWhitelist` 同理：`ORDER BY` 后面不能放占位符，唯一可行的防线是白名单，晚一天加就多一天裸奔。
+**实现中暴露的判断点（已按此落代码，待本人复核签字）**
 
-**判据**：`GET /api/articles?pageSize=99999` 返回 400，响应体带 `code:40000` 与「每页最多 200 条」；同时断言默认值 1/10 和合法值 2/20 仍返回 200，避免"全拒"也能通过的假绿。
+1. **两字别名不能参与"整句包含"加分**
+   - 现象：`IntentRouterTest` 把"我要写一篇新文章"路由到了「文章列表」而不是「写新文章」。
+   - 原因：「文章」是「文章列表」的两字别名，几乎任何一句中文里都有，直接给 0.8 分会压过真正的意图。
+   - 处理：只有长度 ≥ 3 的标题/别名才给包含强信号；两字词只走 bigram 打分。**这是一次测试先红、代码后改的过程，不是事后补的说明。**
 
-**这条判据真的能红**：把 `PageQuery` 上的 `@Max(value = 200)` 临时删掉，`oversizedPageSizeIsRejected` 立即失败：
+2. **日志写库用同步 + `REQUIRES_NEW`，不用异步线程**
+   - 判断依据：异步线程池满时丢掉的恰好是"出事那一刻"的日志；课设数据量下多一次 insert 可接受。
+   - 代价：接口响应时间包含日志写入；已在需求分析 v1.1 中改写，不再声称"异步"。
 
-> expected: <400> but was: <200>
+3. **C2 校验做成类级，不做方法级**
+   - 方法级要求每个接口都挂卡片，会把 `/api/articles/{id}` 这类纯数据接口也变成"页面"，卡片列表里出现用户点不开的条目。
+   - 类级保证"模块不被漏掉"，同时允许同一 Controller 里有不面向页面的接口。
 
-验证完已改回，`mvn -o package` 绿，`Tests run: 14, Failures: 0`（D2 的 2 条 + 今天的 12 条）。
+4. **状态机上有 `RESUBMIT`，代码里却没有出口**
+   - 发现：`ArticleAction.RESUBMIT` 定义了，但没有 Service 方法、没有接口，已下架的稿子永远回不来。
+   - 处理：补 `ArticleService.resubmit` 与 `POST /api/articles/{id}/resubmit`。**"状态图上画了边"不等于"代码里能走"。**
 
-**卡点**：GitHub 的 22 端口直连超时（`ssh -T git@github.com` 20 秒无响应），本机代理只开了 HTTP/SOCKS，SSH 走不出去。改为 HTTPS 远程经 `127.0.0.1:7897` 推送；仓库的 `origin` 仍保留 SSH 地址，换机器时再按网络情况切换。
+5. **管理员角色必须保留 `role:manage`**
+   - 场景：管理员把「角色管理」从 ADMIN 自己身上取消 → 再没人能进权限页把它加回来，系统永久锁死。
+   - 处理：保存 ADMIN 权限时强制校验，缺少则 409，并给出原因。
 
-**日期**：D3 实际完成于 11-04，比计划表晚一天。按规则 4 顺延，不压缩后续内容。
+6. **分类停用后禁止"新发布"**
+   - 投稿时校验分类启用不够：稿件排队期间分类可能被停用，审核通过时又放出去了。
+   - 处理：`approve` 时二次调用 `requireEnabled`。已有文章不受影响，符合 WP-2 的判据。
 
-## D4 · 2026-11-05 · 数据层
+7. **排序补唯一键**
+   - 只按 `create_time` 排序时，同秒创建的稿件在两次查询里顺序可能不同，翻页会重复或漏行。
+   - 处理：`SortWhitelist` 支持追加 `a.id desc` 作为 tiebreaker。
 
-**做了什么**：`schema.sql`（六张主表 + `sys_log` + 两张关联表）、`data.sql`（4 角色 / 15 权限点 / 5 用户 / 10 分类 / 20 文章 / 7 条日志）、`MybatisPlusConfig`、`AuditMetaObjectHandler`，另加 `DataLayerTest` 4 条与 `scripts/verify-db.sh`。
+8. **分类不支持换上级**
+   - 换 `parentId` 会让整棵子树的 `level` 失效，还要处理环。
+   - 处理：后端显式忽略 `parentId`，界面写明"需移动时新建分类再迁移文章"。这是**划界**，不是遗忘。
 
-**为什么这一块排第四**：后面每一块都要落表，表结构定晚了返工面最大。三个设计点是刻意的：`sys_permission` 运行期只读（D11 的站点地图校验依赖"权限码集合稳定"）；文章用 `version` 做乐观锁而不是行锁；所有业务表都有 `create_time`/`update_time`，且由 `MetaObjectHandler` 统一下发——业务代码手写时间戳，迟早有一处漏。
+**我改了什么**
 
-**审计填充的切法**：源项目的 `AuditMetaObjectHandler` 还填 `create_by`/`update_by`，这依赖 D5 才进来的 `UserContext`。今天先只填时间，D5 把登录态接上后补两行；否则数据层单独编译不过。
+| 文件 | 改动 |
+|---|---|
+| `module/category/entity/CmsCategory.java` | 修正 `package` 声明。错误声明导致 413 个编译错误（类重复 + 找不到 Lombok 方法），一个包名错能伪装成"整个工程烂了" |
+| `guide/intent/IntentRouter.java` | 包含匹配只认 ≥ 3 字的键；`@SafeVarargs` 消除 unchecked 警告 |
+| `module/article/service/ArticleService.java` | 新增 `resubmit`；`approve` 二次校验分类；补唯一排序键 |
+| `module/user/service/RoleService.java` | ADMIN 必须保留 `role:manage` |
+| `guide/controller/GuideController.java` | 类级 `@GuideCard(page = false)`：引导接口自己不是页面，但要声明出来让 C2 知道这不是漏掉的模块。**不加这行，服务起不来** |
+| `common/util/SortWhitelist.java` | 支持 tiebreaker |
+| `static/js/pages/*.js`（8 个） | 补 `await bootReady;`。原来只写了 `if (me) await main()`：模块求值时 `boot.js` 里那次 `/api/auth/me` 还没回来，`me` 必然是 null，于是**每个页面都不会加载数据**，而且不报错——只看到一个空壳 |
+| `auth/LoginInterceptor.java` + `static/js/pages/login.js` | 未登录跳转带上 `next`；只接受站内绝对路径，`//evil.com` 这种协议相对 URL 一并拒绝 |
+| `static/js/guide.js` | 高亮和"你刚才看的是哪一页"分成两个标记。共用一个时，先发生的那个会把另一个清掉——自动高亮和对话问候只能剩一个 |
+| `static/js/pages/roles.js` | 角色编码正则改为与后端一致（`^[A-Z_]{2,20}$`），原先前后端两套规则 |
+| `docs/任务书.md` | 修正 4 处与实现不符：拦截器顺序（分页插件第一个加，不是最后）、C2 粒度（类级）、标题检索（实际 `%kw%`，用不上索引，改为对照实验）、建议实现（Java 规则而非 `suggestions.yaml`） |
 
-**判据一（建表）**：`scripts/verify-db.sh` 起一个**用户级临时 MariaDB 实例**（随机端口 + socket，跑完即删），在空库里跑 `schema.sql` 与 `data.sql`，断言 8 张表、6 个外键、各表行数与脚本一致。不碰本机已有的 `cms_db`——`cmsapp` 只有该库权限，`root` 也不接受 socket 登录，所以不能建临时库，只能另起实例。
+**本日遗留**
 
-**判据二（审计填充）**：测试实体标 `@TableField(fill = INSERT/INSERT_UPDATE)`，调 handler 后断言两个时间戳都被填上、更新时 `createTime` 不被覆盖、`id` 不被误改。
+- 建库需 root：`sudo bash db/init.sh` 尚未执行，因此**本条目只验证到"编译通过 + 17 个单测通过"，没有验证启动与页面**。下一轮补浏览器实测记录。
+- 需要本人确认的判断点：1、2、3、5、6、8（其余是缺陷修复，无选择空间）。
 
-**两条判据都真的能红**：
-- 把 `insertFill` 里两行 `strictInsertFill` 删掉 → `expected: not <null>`（createTime 没有自动填充）。
-- 往 `schema.sql` 末尾追加一句 `THIS IS NOT SQL;` → 脚本退出码 1，报 `ERROR 1064 ... near 'THIS IS NOT SQL'`。
-验证完均已还原，`mvn -o package` 绿，`Tests run: 18, Failures: 0`；`scripts/verify-db.sh` 输出 `OK`。
+---
 
-**日期**：D4 实际完成于 11-05，计划表写 11-04，同样顺延一天。
+## D2 补记（2026-10-27，文档与代码对账）
 
-## D5 · 2026-11-08 · 安全层·身份
+写完后逐条拿文档去对代码，又找出三处"文档说得比代码多"的地方。这类偏差比编译错误危险：代码不会报错，答辩时被追问才会穿帮。
 
-**做了什么**：`LoginUser` / `UserContext`、`LoginInterceptor`、`PasswordConfig`（只引 `spring-security-crypto` 拿 BCrypt）、`WebMvcConfig`、`AuthService` / `AuthController`（登录、注册、退出、`/me`）以及它们依赖的 `SysUser` / `SysRole` 实体与三个 mapper、`SessionKeys` / `RoleCode`。新增 `LoginInterceptorTest` 5 条、`AuthBoundaryTest` 4 条。
+1. **认证流程还写着 token**
+   - `需求分析.md` §4.1 写"签发 token / 解析 token / 黑名单"，而实现是 Session。
+   - 处理：改写为 Session 语义（30 分钟不活动过期、每请求重新装载用户、页面跳 `/login?next=`、接口 401）。`E-USER-05` 从 `TOKEN_INVALID` 改为 `UNAUTHORIZED`。
 
-**为什么这一块排第五**：身份是后面所有块的前置——D6 的权限码要挂在登录态上，D8 的审计要取 `createBy`，D10 的站点地图要校验卡片上的权限码是否存在。而且身份层一旦定错（比如把整个 `LoginUser` 塞进 Session），后面每改一次权限就得让用户重新登录，演示时很难解释。
+2. **`E-USER-07` 登录失败锁定并不存在**
+   - 文档写了"5 分钟 5 次锁定"，代码里没有计数，也没有 `TOO_MANY_ATTEMPTS`。
+   - 处理：删除该分支，移进 §2.2「不包含」并写明理由（账号枚举已由统一错误码防住，锁定的成本高于收益）。**没有为了让文档成立而临时加功能**——那是范围蔓延。
 
-**两个刻意的设计点**：
-- Session 里**只存 userId**，每次请求由 `LoginInterceptor` 回查数据库重新装载。代价是每请求多两条查询，换来"停用账号立刻踢下线、改角色立刻生效"。用户被删除或停用时直接 `invalidate()` 旧 Session，不留半死状态。
-- 账号不存在与密码错误返回**同一个错误码**（`40101`）。分开提示等于送给攻击者一个用户名枚举接口。
-- 登录成功后先 `invalidate()` 旧 Session 再建新的，防会话固定。
+3. **`E-USER-06` 引用了不存在的错误码**
+   - 文档写 `USER_HAS_ARTICLES`，代码里没有；用户是 `@TableLogic` 逻辑删除，外键 `fk_article_author` 根本不会触发。
+   - 处理：这一条反过来**补了代码**——删除用户前显式统计其名下稿件，>0 抛 `40903`。理由：逻辑删除后文章会指向一个"已删除"的作者，列表作者名空白且没人能接手编辑，这是真实的数据完整性问题，不是文档好看。
+   - 三处都收进 `演示脚本.md` 第 6 幕，作为可失败的验收点。
 
-**补完 D4 的遗留**：`AuditMetaObjectHandler` 现在会填 `createBy` / `updateBy`，从 `UserContext` 取。取不到（未登录的注册、定时任务）就不填，而不是填 0——0 会被当成一个真实用户 id。
+4. **`任务书.md` §12 还写着"待你拍板"**
+   - 五项决策早已按推荐执行，文档却停在"定了才好开工"。
+   - 处理：改为"决策记录"，并把 §13 改成当前状态：唯一未完成的是实机联调。
 
-**今天没搬的东西**：`AuthController` 上的 `@OperLog` 注解留到 D8（日志落库）再加；`SysRoleMapper` 里与角色分配相关的 VO 查询留到 D6。这样 D5 单独一块编译得过，也不会把后面几天的判据提前"绿掉"。
+**新增文件**
 
-**判据**：未登录访问 `/api/**` 返回 401，响应体带 `code:40100`。分两层验：
-- 单元层（`LoginInterceptorTest`）：无 Session 直接 401 且**不穿透到数据库**；停用用户 401 且 Session 作废；有效用户放行且请求结束后 `UserContext` 被清空；非 `/api` 页面路径 302 到 `/login?next=...`。
-- 集成层（`AuthBoundaryTest`）：真的走 `WebMvcConfig` 注册的拦截器，断言 `/api/auth/me`、**不存在的 `/api/does-not-exist`**、`/api/auth/logout` 都是 401；而 `/api/auth/login`、`/api/auth/register`（空 body 应到校验层返回 400）与 `/api/portal/**`（404）确实被放行。
+| 文件 | 用途 |
+|---|---|
+| `docs/测试记录.md` | 已执行项（编译、17 个单测、9 项静态对账）逐条列出命令与结果；待执行项做成勾选表，**"没跑"不写成"通过"** |
 
-**判据真的能红（两次注入）**：
-1. 把 `WebMvcConfig` 的 `addPathPatterns("/api/**", "/app/**")` 改成只留 `/app/**` → `unknownApiPathIsStillProtected` 红（`expected:<401> but was:<404>`）、`logoutRequiresLogin` 红（`expected:<401> but was:<200>`）。
-2. 注释掉 `LoginInterceptor.reject` 里写响应体的那一行 → 两条单元/集成断言都红（`响应体应带 UNAUTHORIZED 错误码，实际：`）。
+---
 
-**一个值得记的坑**：注入 1 之后 `meRequiresLogin` **仍然是绿的**。原因是它打到 `/api/auth/me`，拦截器没生效时 Controller 里的 `UserContext.require()` 自己也会抛 `UNAUTHORIZED`，照样 401。也就是说只写这一条断言的话，"拦截器根本没注册"这个故障是查不出来的。真正能证明边界的是**不存在的 `/api` 路径**和**不需要登录态就能成功的 `logout`**——判据要挑"没有别的代码替它兜底"的那条。
+## D2 补记 二（2026-10-27，实机联调）
 
-验证完两次注入均已还原，`mvn -o package` 绿，`Tests run: 27, Failures: 0`（D2–D4 的 18 条 + 今天的 9 条）。
+建库脚本由本人执行（`sudo bash db/init.sh`），之后按 `演示脚本.md` 从第 1 幕演到第 10 幕，边演边验收。这一轮的价值不在"跑通了"，而在**跑的时候有 5 处失败**——它们都只在真实数据、真实浏览器里才出现。
 
-**日期**：D5 实际完成于 11-08，计划表写 11-05。按规则 4 顺延，不压缩后续内容。
+### 1. 8 个数据页全部停在"加载中"
 
-## D6 · 2026-11-09 · 安全层·权限
+- 现象：接口直接调是 200、有数据，页面表格却只有一行"加载中"，控制台无报错（异常被 `await` 链吞掉了）。
+- 定位：`import('/js/pages/articles.js?debug=1')` 抛出 `can't access lexical declaration 'COLS' before initialization`。
+- 根因：模块顶层写了 `await bootReady;`。ES Module 求值挂起在 `await` 处时，**后面的 `const state/COLS` 还没初始化**；等 `bootReady` resolve 继续执行，`main()` 一读就是暂时性死区（TDZ），抛 `ReferenceError`。
+- 修复：8 个页面统一改为
+  ```js
+  bootReady.then(() => (me ? main() : null)).catch((e) => console.error('文章列表初始化失败', e));
+  ```
+  用 `then` 把启动排到本次模块求值结束之后；`.catch` 让初始化异常出现在控制台而不是静默消失。
+- 教训：**"接口 200" 不能证明页面能用**。页面级验收必须断言"第一行不是加载态"，而 `rows.length > 0` 会被"加载中"这一行满足——判据本身是空转的。
 
-**做了什么**：`Perm` 权限码常量、`@RequirePermission` 注解、`PermissionAspect`（`@Around("@annotation")`），以及 `RoleService` / `RoleController` 与它们依赖的 `SysPermission` 实体、`SysPermissionMapper` / `SysRolePermissionMapper`、四个 VO、两个 DTO；`SysRoleMapper` 补了三条批量查询（角色权限行、角色人数、角色被引用数）。新增 `PermissionAspectTest` 5 条、`RolePermissionBoundaryTest` 5 条。
+### 2. 批量操作弹窗把失败说成成功
 
-**为什么排第六**：D5 只回答"你是谁"，今天才回答"你能干什么"。这两件事必须分开——身份是一个请求内稳定的事实，权限是可能随时被管理员改的策略；把它们塞进同一个过滤器，改权限就得重新登录，演示时很难解释。今天的做法是：身份每请求重查（D5），权限在切面里按**当前**上下文比对，所以改完角色下一个请求就生效。
+- 现象：批量通过里 1 成功 2 失败，弹窗显示"完成：成功 1 篇"，失败项没出现。
+- 根因：前端写 `if (!r.failed)`；而接口返回的 `failed` 是**失败 id 数组**，空数组在 JS 里是真值，非空数组也是真值——这个分支永远进不去。`reasons` 是对象，`.map` 直接抛错。
+- 修复：`articles.js` / `review.js` 改为 `failedIds.length`，逐条渲染 `reasons[id]`；`docs/api.md` 明确写"`failed` 是 id 数组（不是个数）"，并提醒空数组是真值。
+- 教训：**前后端契约里的"名字"不等于"意思"**。`failed` 听起来像数字，实际是数组；文档只写字段名、不写类型，就会在两边各自理解。
 
-**三个刻意的设计点**：
-- **401 与 403 不混**。`PermissionAspect` 第一步是 `UserContext.require()`，没有身份直接 401；有身份但不满足权限码才是 403。把未登录当成"没有权限"返回 403，会让前端不知道该跳登录页还是该提示无权限。
-- **ANY / ALL 是注解里的语义，不是切面的默认行为**。`@RequirePermission({ROLE_MANAGE, USER_MANAGE})` 表示"二者之一"，这样"角色列表"既能给角色管理员看，也能给用户管理员看（分配角色时要选）；写成 `Logic.ALL` 时缺一个就拒。语义写在调用点，切面只负责执行。
-- **`@Order(2)` 是有意的**：D8 的日志切面会排在它外面（`@Order(1)`），这样被 403 拦下的请求仍会被记为 `DENIED`。越权尝试不留痕，等于没有日志。
+### 3. 停用父分类成功了（应被拒）
 
-**切面不能只判"接口"，还要判"数据"**：`article:update:own` 与 `article:update:any` 都是权限码，切面只知道"这个人有改稿权限"，不知道"这篇是不是他写的"。数据级判定必须留在 Service（D7），切面越权去猜数据行，就会变成第二个业务层。
+- 现象：把「技术」停用，它的子分类仍是启用状态，前端筛选里出现"父分类不可见、子分类仍可选"。
+- 根因：`CategoryService` 只在**删除**时检查子分类/文章引用，**停用**路径没有检查。
+- 修复：新增 `countEnabledChildren` + `checkCanDisable`，`update()` 与 `updateStatus()` 都走同一条检查，命中返回 `40903`。
+- 教训：同一个业务约束如果有两个入口，检查必须放在**两条路都经过的地方**，而不是"我记得删除那里写了"。
 
-**今天没搬的东西**：`RoleController` 四个写接口上的 `@OperLog` 留到 D8——现在加了也没有切面接收，只会让"日志没记上"看起来像 bug。原定判据里的"`sys_log` 有一条 DENIED"同理顺延。
+### 4. 日志参数里挂着 `RequestFacade@28ef8fa8`
 
-**判据**（拆成两层）：
-- 单元层（`PermissionAspectTest`）：作者缺 `article:audit` → 403 且**业务方法一次都没执行**（`verify(pjp, never()).proceed()`，防"先执行再报错"）；有权限时原样返回；ANY 命中一个即放行；ALL 缺一个即拒；无身份 → 401。
-- 集成层（`RolePermissionBoundaryTest`）：真的走 D5 的 `LoginInterceptor`（Session 里放 userId，`AuthService` mock 出对应身份），断言作者 `GET /api/roles` → 403/40300 且 `RoleService` 零调用；`role:manage` 与 `user:manage` 都能读；未登录 → 401/40100；`/api/roles/permissions` 同样受控。
+- 现象：登录日志的 `params` 是 `{"username":"admin","password":"***"} | org.apache.catalina.connector.RequestFacade@28ef8fa8`。
+- 根因：`MaskUtil` 用**类名前缀**判断"基础设施对象"（`javax.servlet`、`org.springframework.web`…），而容器实际传入的实例类是 `org.apache.catalina.connector.RequestFacade`，一个前缀都不沾。
+- 修复：改为 `instanceof javax.servlet.ServletRequest/ServletResponse`——判断"它是不是 Servlet 对象"，而不是"它像不像 Servlet 包里的东西"。
+- 教训：**按名字猜类型会漏**；能用类型判断就别用字符串前缀。
 
-**判据真的能红（两次注入）**：
-1. 把 `allowed` 改成恒 `true` → 4 条红（单元 2 条 + 集成 2 条），报 `Status expected:<403> but was:<200>`。
-2. 删掉 `RoleController.list()` 上的 `@RequirePermission` → `authorIsForbidden` 红，`roleManagerCanRead` 仍然绿——正好说明"只测有权限的人能进来"是废判据。
+### 5. 删除仍有稿件的账号成功了
 
-**一个值得记的坑**：`@WebMvcTest` 的切片里**没有 AOP 自动配置**。第一次跑集成测试时，`@Import(PermissionAspect.class)` 把切面注册成了普通 Bean，`@Aspect` 不生效、所有请求直接放行——表现为"作者也能读角色列表"。也就是说，如果测试只写"管理员返回 200"这一面，这个故障会被当成通过。凡是"加了注解但没生效"的场景，判据必须是**该被拒绝的那一方**。
+- 现象：`author` 名下有稿件，删除账号却成功，文章列表里作者名变空白。
+- 根因：用户是 `@TableLogic` 逻辑删除，外键 `fk_article_author` 不会触发；文档里的 `E-USER-06` 早就写了这条约束，代码没实现。
+- 修复：`UserService.delete` 先统计 `cms_article.author_id`，>0 抛 `40903 该用户名下还有 N 篇稿件`。
+- 说明：这一条与"文档说得比代码多"同类，但结论是**补代码**而不是删文档——逻辑删除造成的孤儿数据是真实缺陷。
 
-**合并别人分支时撞了三个文件**：推送被拒，远程 `main` 上已经有 chuanzi908 的 PR #1（M1-S1：实体与建表脚本对齐），里面同样有 `SysPermission`、`SysPermissionMapper`、`SysRolePermissionMapper`。前两个与今天新增的语义等价，取他的版本（注释更全，且他补了 `SysRolePermission` / `SysUserRole` 两个实体和一条"实体与 `schema.sql` 对不上就红"的测试）。第三个他做成 `BaseMapper<SysRolePermission>`，而 D6 需要按复合主键的三个便捷方法——合并成"`BaseMapper` + 三个方法"，并把 `insert` 改名为 `insertIgnore`：`BaseMapper` 已经注入了一个叫 `insert` 的语句，同名声明会撞 statement id；而且这里要的是 `insert ignore` 的幂等插入，与"重复键抛异常"是两种不同的失败语义。合并后 `Tests run: 39`（两人的用例都在），`BUILD SUCCESS`。
+### 6. 启动期校验 C1–C5 是活的，不是文档
 
-**日期**：D6 实际完成于 11-09，计划表写 11-06。按规则 4 顺延。
+- 做法：临时加一个 `TmpProbeController`，带 `@RequirePermission(Perm.LOG_READ)`、不带 `@GuideCard`，重启。
+- 结果：服务**拒绝启动**：
+  ```
+  IllegalStateException: 站点地图校验失败（服务拒绝启动）:
+  - C2 Controller 有 @RequirePermission 但整类没有 @GuideCard：TmpProbeController（智能体将不知道这个模块的存在）
+  ```
+- 追加发现：删掉源码后重启**仍然失败**——`target/classes` 里的旧 `.class` 还在被扫描。必须 `mvn clean`。删源码 ≠ 删 Bean。
+- 教训：这条约束在答辩时应现场演一次，因为它把"智能体知道全站"从承诺变成了会让进程起不来的硬约束。
 
-## D7 · 2026-11-16 · 业务层·分类只读与计数
+### 7. 端口从 8080 改到 8090
 
-**做了什么**：`catalog/category` 包——`CmsCategory` 实体、`CmsCategoryMapper`（`selectAllAlive` 与按分类分组的 `countPublishedByCategory`）、`CategoryCountRow`、`CategoryVO`（带 `articleCount` 与 `children`）、`CategoryService`（`tree` / `listFlat` / `descendantIds` / `requireEnabled`）。新增 `CategoryTreeTest` 10 条、`CategoryCountDbTest` 3 条（真实库，平时跳过）与 `scripts/verify-category-count.sh`。
+- 现象：`mvn spring-boot:run` 报 `BindException`，但访问 8080 并不是 404，而是 Tomcat 默认页。
+- 定位：本机装了系统级 `tomcat9.service` 占着 8080，**不是本项目进程**。
+- 处理：没有去停系统服务（会影响到别人的东西），改配置到 8090，并在 `application.yml` 注明原因；README、`演示脚本.md`、`任务书.md`、`api.md` 四处同步。
+- 教训：端口冲突先看"占着的是谁"，再决定改谁。
 
-**范围为什么变了**：拉下来的 `main` 上已有 M2（wangchu67162-netizen）的 D1–D3，`ArticleService` 的**分页列表与 `countByAuthor` 已经落地**；计划表里 D7 的另一半因此不需要重写。今天只补智能体真正要读、而两个模块都还没提供的分类侧：它要回答"站点配了分类没有"（`listFlat().isEmpty()`）和"某分类下有多少篇文章"（树上的数字）。分类的新增/改名/删除属于分类管理，不在今天的范围，所以这一版是只读的。
+### 8. 补上 ApiFox 集合（评分表有这一项）
 
-**计数口径写死在三处**（Service javadoc、Mapper SQL、测试断言）：节点的数字 = 自身 + 全部子孙下**已发布且未删除**的文章数；与分类自身是否启用无关——停用只是前端不给选，不改变历史文章的归属。口径必须唯一，否则智能体会报一个"看起来对、和后台列表对不上"的数字。
+- 发现：`任务书.md` 的目录树写着 `apiFox/cms.json`，实际目录不存在——文档又比交付物多。
+- 处理：按 `docs/api.md` 生成 `apifox/cms-openapi.json`（OpenAPI 3.0，统一响应壳 + 14 个业务码 + Session Cookie 鉴权）。接口数后来随模型密钥功能增加到 49 个、50 个 schema。
+- 对账方式：脚本从 `*Controller.java` 抽取 `@RequestMapping/@GetMapping/...` 与规范做**双向差集**，两个方向均为空，所有 `$ref` 可解析。这类检查能双向失败：漏写接口和编造接口都会被它抓出来。
 
-**三个刻意的设计点**：
-- `onlyEnabled=true` 时，停用分类**连同整棵子树**移除，而不是把子节点挂到根上。挂根会让"后端"看起来像个一级分类，用户会以为站点结构变了；计数在剪枝之前算好，所以父节点的数字仍包含被隐藏子树。
-- 父分类被逻辑删除时，子分类挂到根上并发保留自己的数字——否则删一个中间分类会让它的子树凭空消失。
-- `descendantIds` 用显式栈 + `visited`，`parent_id` 指向自己或形成环时不重复展开、不死循环；分类不存在返回空列表而不是抛异常，调用方在拼 `IN` 条件时天然得到"没有结果"。
+### 本日遗留
 
-**判据（两层）**：
-- 逻辑层（`CategoryTreeTest`）：树形状、`技术 = 后端 9 + 前端 1 = 10`、空叶子是 0 而不是 null、剪枝后数字不变、子树 id 覆盖三级、自环不死循环、孤儿挂根、停用分类发布时拒（40000）。
-- 真实库（`CategoryCountDbTest` + `scripts/verify-category-count.sh`）：起临时 MariaDB 导入 `schema.sql` + `data.sql`，断言树上每个节点的数字 == 用 `JdbcTemplate` 独立算出的子树 `COUNT`。**子树 id 在测试里写死，不复用被测的 `descendantIds`**——否则尺子和被测对象是同一把，汇总漏一级时两边一起错、一起绿。
+- 无阻塞项。`mvn test` 当时 17 个用例（当晚补模型密钥功能后为 22 个）、`mvn compile`、启动期 C1–C5、十幕联调、5 类接口异常均通过；结果见 `docs/测试记录.md`。
+- 需要本人确认的仍是 D2 里列出的判断点 1、2、3、5、6、8。
 
-**两次注入，都真的能红**：
-1. 删掉 `rollUp` 里的 `total += rollUp(child)` → `CategoryTreeTest` 2 条红（`后端 = 9` 变 0），脚本随之退出码 1（`分类 技术 的数字与库里的 COUNT 对不上 ==> expected: <10> but was: <0>`）。
-2. 把 Mapper 的 `AND status = 'PUBLISHED'` 去掉（口径改成全部状态）→ 真实库 2 条红：`Java 应为 6；算上未发布就是 9 ==> expected: <6> but was: <9>`、`分类 技术 ... expected: <10> but was: <17>`。
-两次验证完均已还原，`mvn -o package` 绿，`Tests run: 50, Failures: 0, Errors: 0, Skipped: 1`（跳过的那条就是真实库判据，没有库时不跑）。
+## D3 · 2026-10-27 · 模型通道与用户自填密钥
 
-**一个值得记的坑**：`scripts/verify-category-count.sh` 第一版用 `mvn -q test`，只看退出码——但 `@EnabledIfSystemProperty` 不满足条件时测试是 **skipped**，`mvn` 照样返回 0，于是"没量"会被当成"量过了"。改成跑完必须 `grep` 到 `Tests run: 3, Failures: 0, Errors: 0, Skipped: 0`，否则脚本自己 `exit 1` 并打印实际条数。
+需求原话：「智能体接入 deepseek 大模型，让用户在界面填写自己的 apikey」。这一步把原来"有通道但要靠服务端配置"的半成品补成用户自助可用。
 
-**没做的事**：`ArticleService` 的 `countByAuthor` 口径与智能体分状态计数（驳回数、草稿数）的对齐留给 M2——他们 D4–D6 正在改这个类的分页与测试，同一天改同一处只会互相踩。今天的 DB 判据已经把"分类数字与库里同源"钉住，D10 接建议服务时再核对文章侧。
+### 1. 密钥放哪：三个候选，选了最弱的那个存储面
+
+| 方案 | 为什么不选 |
+|---|---|
+| 落库（用户表加字段） | 本作业是源码交付，库结构和数据都在仓库里；密钥入表意味着明文进 SQL 脚本和备份，评分表里的"AI 应用"会变成"AI 泄密" |
+| `localStorage` | 同源任何脚本都能读；一次 XSS 就把用户的 key 交出去 |
+| **`HttpSession` 属性** | 服务端内存、随退出登录失效、不经过任何持久化。代价是重启后需要重填——对演示来说这是正确取舍 |
+
+接口只回 `keyHint`（`sk-…a1b2`），VO 里**根本没有 key 字段**，不是"有字段但不填"。少一个字段就少一条将来被填上的路。
+
+### 2. 命中顺序是"会话 → 服务端配置 → 无"，不是三选一开关
+
+`LlmKeyStore.effectiveKey()` 先看本次会话，没有再取 `DEEPSEEK_API_KEY` / `app.guide.llm.api-key`。这样两种场景同时成立：学生自己的机器上填一次密钥即可用；答辩机器上由环境变量提供，演示时不用现场打字。
+
+`DELETE` 的语义也随之定死为"**清除本会话密钥，回落到配置**"，而不是"关掉模型"。前端文案跟着写成"清除"，不写"关闭"。
+
+### 3. 「测试连接」必须真发一次请求
+
+第一版想法是只检查"密钥非空 + 总开关打开"就回成功——那条判据在密钥无效时照样绿，等于空转。改成用同一把密钥发一次 `ping`（不含卡片候选），把耗时和失败原因带回去。
+
+失败返回 `code=0` + `data.ok=false`：这是诊断接口，密钥填错是用户输入问题，不该让前端按"系统异常"处理（会弹全局错误框）。这一点在 `api.md` 里单独写了一段，因为它是反直觉的。
+
+### 4. 脱敏不是"别打印"，是有地方会自己漏
+
+延续 D2 的 `MaskUtil`：审计日志记录 `PUT /api/guide/llm` 的请求体时，`apiKey` 显示为 `***`。验收方式是把整份运行日志 grep 一遍填入的假密钥，命中 0 次——这个判据能失败：如果哪层把原始请求体打了出来，立刻命中。
+
+`describeError()` 另外把异常消息里的密钥串替换成 `***` 再截断 200 字，防止 `RestTemplate` 把完整 URL/请求头带进日志。
+
+### 5. 自己的修复也会只修一半：卡片宽度的教训
+
+现象：对话框里页面卡片只有 106px 宽，两列挤成细条。
+
+第一次判断是"气泡按内容收缩"，于是加 `.guide-msg.has-cards .bubble-msg { width:100% }` 并把类打上去。复查时类**确实存在**、CSSOM 里规则**确实加载**，但卡片还是 106px。
+
+把三个盒子的计算值打出来才看清：`.bubble-msg` 150.6px、`.guide-cards` 219.4px，而 `-.guide-cards` 是 `.guide-msg` 的**兄弟节点**——`renderCards` 一直把网格挂在消息容器上，而消息容器是 `display:flex`，于是气泡和网格被横向排开。类名加对了、选择器写对了，布局依然错，因为**挂载位置从来就不是我以为的地方**。
+
+修法是把网格和详情挂进 `.bubble-msg` 内部。教训：验证 CSS 修复要看**元素的实际几何**（`getBoundingClientRect` + `getComputedStyle`），而不是"类在不在、规则在不在"——后者是输入侧的判据，前者才是产物侧。
+
+### 6. 影响面外的东西一条没动
+
+- 规则路由仍在前，模型只在规则没命中时被问；模型只返回卡片 id，id 不在站点地图里就丢弃，卡片文案从不经过模型。
+- 没有密钥时完整可用，`source` 只会出现 `RULE` / `EMPTY`。
+- 总开关 `app.guide.llm.enabled` 关掉后，界面上的密钥输入**保存也会被忽略**（`test()` 与 `route()` 两处都先判开关），而不是留着输入框骗人。
+
+### 本轮验证
+
+- `mvn -o test`：22 个用例，0 失败（新增 `GuideLlmServiceTest` 5 个）。
+- 浏览器实测：`⚙` → 填假密钥 → 状态 `密钥 sk-…3456 · 仅本次登录有效` → 测试连接返回 401 失败 → 清除 → 回落 `CONFIG` → 用真实密钥测试约 1 秒成功 → 问"怎么把账号权限开给别人"得到 `source=LLM` 与 `user.manage`/`role.manage` 两张卡。
+- 接口对账：spec 49 个接口与代码双向差集为空，106 处 `$ref` 全部可解析。

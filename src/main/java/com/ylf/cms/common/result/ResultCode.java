@@ -13,6 +13,7 @@ public enum ResultCode {
     BAD_REQUEST(40000, "请求参数不合法", HttpStatus.BAD_REQUEST),
     CATEGORY_LEVEL_EXCEED(40001, "分类层级超出上限（最多 3 级）", HttpStatus.BAD_REQUEST),
     PARAM_MISSING(40002, "缺少必要参数", HttpStatus.BAD_REQUEST),
+    SENSITIVE_INFO(40003, "内容包含敏感信息，请处理后重试", HttpStatus.BAD_REQUEST),
 
     UNAUTHORIZED(40100, "未登录或登录已失效", HttpStatus.UNAUTHORIZED),
     LOGIN_FAILED(40101, "用户名或密码错误", HttpStatus.UNAUTHORIZED),

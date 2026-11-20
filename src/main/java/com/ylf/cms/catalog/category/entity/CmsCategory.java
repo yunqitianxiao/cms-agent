@@ -11,8 +11,8 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 分类。parent_id=0 表示根节点；level 由 Service 推导（1..3），
- * 不信任前端传入的值，否则可以把第 5 级标成第 1 级绕过深度限制。
+ * 分类。parent_id=0 表示根节点；level 由 Service 维护（1..3），
+ * 不信任前端传入的 level，否则可以把第 5 级标成第 1 级绕过深度限制。
  */
 @Data
 @TableName("cms_category")

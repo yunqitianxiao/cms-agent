@@ -22,10 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -63,21 +61,6 @@ public class RoleService {
             vo.setUserCount(userCounts.getOrDefault(r.getId(), 0));
             return vo;
         }).collect(Collectors.toList());
-    }
-
-    /** 全部权限码，站点地图启动校验用；外部模块不该直接读权限表。 */
-    public Set<String> permissionCodes() {
-        return permissionMapper.selectList(null).stream()
-                .map(SysPermission::getPermCode).collect(Collectors.toSet());
-    }
-
-    /** 权限码 → 权限名，智能体拼"缺少 XX 权限"提示用。 */
-    public Map<String, String> permissionNames() {
-        Map<String, String> map = new LinkedHashMap<>();
-        for (SysPermission p : permissionMapper.selectList(null)) {
-            map.put(p.getPermCode(), p.getPermName());
-        }
-        return map;
     }
 
     public List<PermissionVO> listPermissions() {
@@ -152,7 +135,7 @@ public class RoleService {
                     || permIds == null
                     || !permIds.contains(roleManage.getId())) {
                 throw new BizException(ResultCode.CONFLICT,
-                        "管理员角色必须保留「角色管理」权限，否则将无人能再调整权限");
+                        "管理员角色必须保留“角色管理”权限，否则将无人能再调整权限");
             }
         }
         rolePermissionMapper.deleteByRoleId(roleId);
@@ -166,7 +149,7 @@ public class RoleService {
             if (permissionMapper.selectById(permId) == null) {
                 throw new BizException(ResultCode.BAD_REQUEST, "权限点不存在：" + permId);
             }
-            rolePermissionMapper.insertIgnore(roleId, permId);
+            rolePermissionMapper.insert(roleId, permId);
         }
     }
 
