@@ -1,8 +1,8 @@
 # 接口文档
 
-Base URL：`http://localhost:8090`。所有接口返回 JSON（页面路由 `/app/*`、`/portal` 返回 HTML）。
+Base URL：本机验证为 `http://127.0.0.1:18092`，部署端口由外置 Tomcat 9 的 Connector 决定。所有接口返回 JSON（页面路由 `/app/*`、`/portal` 返回 HTML）。
 
-**ApiFox 集合**：`apifox/cms-openapi.json`（OpenAPI 3.0，49 个接口、50 个 schema）。导入方式：Apifox → 导入数据 → OpenAPI/Swagger → 选该文件。导入后先调 `/api/auth/login`（`admin` / `123456`），Apifox 会保存返回的 Cookie，其余接口直接可跑。
+**Apifox 集合**：`apifox/cms-openapi.json`（OpenAPI 3.0，50 个操作、50 个 schema）。导入方式：Apifox → 导入数据 → OpenAPI/Swagger → 选该文件。导入后先调 `/api/auth/login`（`admin` / `123456`），Apifox 会保存返回的 Cookie，其余接口直接可跑。
 
 ---
 
@@ -21,8 +21,8 @@ Base URL：`http://localhost:8090`。所有接口返回 JSON（页面路由 `/ap
 ```
 
 - `code = 0` 表示成功，其余为业务错误码。
-- `traceId` 来自 `X-Trace-Id` 请求头，没有则服务端生成；出错时把 `traceId` 报给开发，能在日志里定位到那一次请求。
-- `timestamp` 是服务端时间戳（epoch 毫秒）；`data` 为空时不输出该字段（`spring.jackson.default-property-inclusion: non_null`）。
+- `traceId` 由服务端为每个请求生成，同时放入 `X-Trace-Id` 响应头和响应体；出错时把它报给开发，能在日志里定位到那一次请求。
+- `timestamp` 是服务端时间戳（epoch 毫秒）；`data` 为空时不输出该字段，由 Spring MVC 配置的 Jackson `ObjectMapper` 控制。
 - HTTP 状态码与业务码同时表达：HTTP 说"协议层结果"，`code` 说"业务原因"。例如权限不足返回 HTTP 403 + `code 40300`。
 
 ### 2. 业务码
@@ -32,6 +32,7 @@ Base URL：`http://localhost:8090`。所有接口返回 JSON（页面路由 `/ap
 | 0 | 成功 | |
 | 40000 | 请求参数不合法 | Bean Validation 未通过、排序字段不在白名单 |
 | 40001 | 分类层级超出上限 | 尝试创建第 4 级分类 |
+| 40003 | 内容包含敏感信息 | 保存文章命中敏感信息规则 |
 | 40100 | 未登录或登录已失效 | 无 session 访问受保护接口 |
 | 40101 | 用户名或密码错误 | 登录 |
 | 40102 | 账号已被停用 | 已停用账号登录 |
@@ -120,6 +121,7 @@ Base URL：`http://localhost:8090`。所有接口返回 JSON（页面路由 `/ap
 | GET | `/api/articles/{id}` | `article:read` | 详情 |
 | POST | `/api/articles` | `article:create` | 新建（保存为草稿） |
 | PUT | `/api/articles/{id}` | `article:update:own` 或 `article:update:any` | 修改草稿/被驳回稿 |
+| POST | `/api/articles/sensitive-check` | `article:create` 或文章修改权限 | 保存前预检标题、摘要和正文，不保存原文 |
 | POST | `/api/articles/{id}/submit` | `article:submit` 或 `article:update:any` | 提交审核 |
 | POST | `/api/articles/{id}/withdraw` | 同上 | 撤回（待审核 → 草稿） |
 | POST | `/api/articles/{id}/resubmit` | 同上 | 已下架 → 重新提交审核 |
@@ -157,6 +159,18 @@ Base URL：`http://localhost:8090`。所有接口返回 JSON（页面路由 `/ap
 ```
 
 `version` 为乐观锁版本号：编辑页回传，冲突时返回 `40900` 并提示刷新。新文章可为空。
+
+**敏感信息预检** `POST /api/articles/sensitive-check`
+
+```json
+{
+  "title": "文章标题",
+  "summary": "文章摘要",
+  "content": "正文内容"
+}
+```
+
+响应中的 `data.safe` 表示是否未发现敏感信息；`data.hits` 只返回字段名、类型、字符区间和掩码，不返回命中的原文。该接口仅用于编辑页提示；新建和修改接口仍会在服务端再次检查，命中时返回 HTTP 400、业务码 `40003`，避免绕过前端直接保存。
 
 **批量接口** 返回逐条结果，不会因为一条失败就整体回滚：
 

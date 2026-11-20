@@ -85,7 +85,7 @@
 {\zihao{2}\heiti《JAVA 框架技术（一）》}\\[0.8cm]
 {\zihao{1}\heiti 课~程~设~计~报~告}\\[1.4cm]
 {\zihao{2}\heiti 企业级 CMS 内容管理系统}\\[0.6cm]
-{\zihao{4}\heiti 基于 Spring Boot 与 MyBatis-Plus 的实现}\\[3.2cm]
+ {\zihao{4}\heiti 基于 Spring MVC 与 MyBatis-Plus 的实现}\\[3.2cm]
 
 {\zihao{4}\songti
 \begin{tabular}{rl}
@@ -107,7 +107,7 @@
 \section*{摘要}\label{ux6458ux8981}
 \addcontentsline{toc}{section}{摘要}
 
-本项目面向内容发布与审核场景，设计并实现了云章 CMS 内容管理系统。系统采用 Spring Boot、MyBatis-Plus 和 Thymeleaf，提供用户与角色管理、多级分类、文章编辑与审核、组合检索、操作日志及前台阅读功能。数据库以用户、角色、权限、文章、分类和日志六类实体为基础，通过关联表维护授权关系。
+本项目面向内容发布与审核场景，设计并实现了云章 CMS 内容管理系统。系统采用 Spring MVC、MyBatis-Plus 和 Thymeleaf，以外置 Tomcat 9 部署为 WAR，提供用户与角色管理、多级分类、文章编辑与审核、组合检索、操作日志及前台阅读功能。数据库以用户、角色、权限、文章、分类和日志六类实体为基础，通过关联表维护授权关系。
 
 系统使用接口权限校验和数据归属检查限制操作范围，以状态迁移表管理文章从草稿到发布、下架的过程，并通过统一异常处理和日志脱敏记录失败原因。列表查询通过关联取数减少逐条查询，站内引导模块通过页面卡片提供导航。项目已有测试记录覆盖状态迁移、权限边界和部分异常场景；并发性能和数据库集成测试仍需进一步补充。
 
@@ -137,7 +137,7 @@
 \subsection*{1.3 规模与交付形态}\label{ux89c4ux6a21ux4e0eux4ea4ux4ed8ux5f62ux6001}
 \addcontentsline{toc}{subsection}{1.3 规模与交付形态}
 
-Java 源文件共 103 个、5 771 行，用 find 命令对 src/main/java 统计。前端模块 17 个、2 349 行，对应 static/js 下的脚本文件。Thymeleaf 模板 13 个。数据表 8 张，其中 6 张主表加 2 张关联表。REST 接口 49 个操作、37 条路径，由 apifox/cms-openapi.json 解析计数。单元测试 33 个、分属 6 个测试类，mvn -o test 全部通过。权限点 15 个、角色 4 个。引导卡片 9 张，启动日志显示 9 张卡片、0 个未覆盖 Controller。
+当前工程包含 105 个 Java 源文件、18 个前端 JavaScript 模块、13 个 Thymeleaf 模板和 8 张数据表。REST 接口共 50 个操作、37 条路径，以 OpenAPI 文件解析计数。单元测试共 38 个，分属 7 个测试类；权限点 15 个、角色 4 个。引导卡片 9 张，启动日志显示 9 张卡片、0 个未覆盖 Controller。
 
 \section*{二、需求分析}\label{ux4e8cux9700ux6c42ux5206ux6790}
 \addcontentsline{toc}{section}{二、需求分析}
@@ -257,7 +257,7 @@ guide:use & 使用站内引导 & ✓ & ✓ & ✓ & ✓ \\
 \section*{三、技术选型与依据}\label{ux4e09ux6280ux672fux9009ux578bux4e0eux4f9dux636e}
 \addcontentsline{toc}{section}{三、技术选型与依据}
 
-项目以 Java 11 为运行基准，使用 Spring Boot 2.7.18 组织应用配置，Spring MVC 处理页面与接口请求，MyBatis-Plus 3.5.3.1 完成数据访问。该组合与原有 SSM 实验衔接，便于在已有业务代码上增加权限校验、分页和统一异常处理。
+项目以 Java 11 为运行基准，采用 Spring Framework 5.3.31、Spring MVC 5.3.31 处理页面与接口请求，MyBatis-Plus 3.5.3.1 完成数据访问；工程不使用 Spring Boot，由外置 Tomcat 9 加载 WAR。该组合沿用 SSM 分层方式，便于在已有业务代码中组织权限校验、分页和统一异常处理。
 
 持久层保留 Mapper 与 XML：常规增删改查使用 MyBatis-Plus，文章列表等关联查询使用 XML 显式描述取数关系和筛选条件，便于检查所需字段和查询过程。
 
@@ -1312,7 +1312,7 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 \subsubsection*{8.4.3 OpenAPI 与 ApiFox 联调}\label{sec:rest-apifox}
 \addcontentsline{toc}{subsubsection}{8.4.3 OpenAPI 与 ApiFox 联调}
 
-接口文档与联调上，apifox/cms-openapi.json 采用 OpenAPI 3.0，可直接导入 ApiFox。文档与实现用脚本对账，49 个操作、50 个 schema、37 条路径与 Controller 双向差集为空。也就是说，没有文档里有而代码里没有的接口，也没有相反的情况。
+接口文档与联调上，apifox/cms-openapi.json 采用 OpenAPI 3.0，可直接导入 Apifox。文档与实现用脚本对账，50 个操作、50 个 schema、37 条路径与 Controller 双向差集为空。敏感信息预检接口返回命中类型与字符区间，不回显原文；写入接口会再次校验，命中时返回 40003。
 
 \includegraphics[width=\linewidth]{media/image52.png}
 
@@ -1942,7 +1942,7 @@ Controller 主要负责：接参、校验、调 Service、包装返回值，不�
 \subsection*{13.1 单元测试}\label{ux5355ux5143ux6d4bux8bd5}
 \addcontentsline{toc}{subsection}{13.1 单元测试}
 
-mvn -o test 共 33 个用例，分属 6 个测试类，全部通过。
+mvn clean test package 共 38 个用例，分属 7 个测试类，全部通过。
 
 ArticleStateMachineTest 有 4 个用例，覆盖 7 条合法边、非法组合、各状态可用动作与删除规则。SensitiveInfoDetectorTest 有 9 个用例，覆盖六类敏感信息、校验位误判、区间占位与日志打码。SiteMapValidatorTest 有 8 个用例，覆盖 C1--C5 五条校验及组合。IntentRouterTest 有 5 个用例，覆盖规则层命中、未命中、多意图与空输入。GuideLlmServiceTest 有 5 个用例，覆盖密钥存取、只回尾号、开关关闭时忽略与连接测试失败路径。ModuleBoundaryTest 有 2 个用例，扫描跨模块越界引用。
 
@@ -1961,14 +1961,14 @@ ArticleStateMachineTest 有 4 个用例，覆盖 7 条合法边、非法组合�
 \subsection*{13.4 浏览器实测}\label{ux6d4fux89c8ux5668ux5b9eux6d4b}
 \addcontentsline{toc}{subsection}{13.4 浏览器实测}
 
-写稿页敏感信息提示框用 Selenium + 无头 Firefox 实测，8 项断言全部通过（输入 → 预检接口返回 → 弹窗出现 → 阻止提交 → 日志打码）。
+写稿页敏感信息提示框在实际运行的浏览器中手动验证：输入虚构邮箱后，预检接口返回命中类型，页面阻止保存；操作日志中的敏感内容显示为掩码。接口请求与响应另用 Apifox 实测。
 
 \subsection*{13.5 已知边界与未实测项}\label{ux5df2ux77e5ux8fb9ux754cux4e0eux672aux5b9eux6d4bux9879}
 \addcontentsline{toc}{subsection}{13.5 已知边界与未实测项}
 
 以下各项如实列出，不假装支持。
 
-测试覆盖偏结构性。33 个用例集中在状态机、边界扫描、检测器与引导校验，Service 层的数据库交互仍靠实机联调，未引入 H2 或 Testcontainers 做集成测试，因此单测全绿不等于 SQL 全对。
+测试覆盖偏结构性。38 个用例集中在状态机、边界扫描、敏感信息识别、文章保护与引导校验；Service 层的数据库交互仍靠实机联调，未引入 H2 或 Testcontainers 做集成测试，因此单测全绿不等于 SQL 全对。
 
 性能未做压测。N+1 优化有 SQL 条数判据，但没有并发压测数据。全文检索用 LIKE \%kw\%，十万级数据后需要走索引或换搜索引擎，EXPLAIN 对照已写进演示脚本，但未做基准测试。
 
@@ -1986,20 +1986,18 @@ ArticleStateMachineTest 有 4 个用例，覆盖 7 条合法边、非法组合�
 \subsection*{14.1 环境要求}\label{ux73afux5883ux8981ux6c42}
 \addcontentsline{toc}{subsection}{14.1 环境要求}
 
-JDK 版本 11。Maven 3.6 以上，依赖已缓存时可加 -o 离线构建。数据库用 MySQL 8 或 MariaDB 10.6 以上，本项目联调使用 MariaDB 10.6.23。服务端口 8090，因为本机 8080 被系统级 tomcat9 占用。
+JDK 版本 11。Maven 3.8 以上。数据库使用 MySQL 8 兼容协议；本机联调使用 MariaDB 10.6.23。Web 容器为外置 Tomcat 9，项目打包为 `cms.war`。开发验证使用端口 18092，部署端口以 Tomcat Connector 配置为准。
 
 \subsection*{14.2 三步启动}\label{ux4e09ux6b65ux542fux52a8}
 \addcontentsline{toc}{subsection}{14.2 三步启动}
 
-\# 1. 建库（创建 cms\_db 与 cmsapp 账号并导入 schema / data）\\
-sudo bash db/init.sh\\
-\strut \\
-\# 2. 启动\\
-mvn spring-boot:run\\
-\strut \\
-\# 3. 打开 http://localhost:8090 ，用 admin / 123456 登录
+\# 1. 配置 CMS_DB_URL、CMS_DB_USERNAME、CMS_DB_PASSWORD\\
+\# 2. 在 course-project 目录运行\\
+mvn clean test package\\
+\# 3. 将 target/cms.war 部署到 Tomcat 9 的 webapps/ROOT.war\\
+\# 4. 启动 Tomcat，打开 http://localhost:18092 ，使用 admin / 123456 登录
 
-停止服务：pkill -f spring-boot:run。
+停止服务：按部署环境使用 Tomcat 的正常停止方式。本次验证仅对已有数据库执行 trace_id 增量迁移，没有运行会清空数据的初始化脚本。
 
 \subsection*{14.3 演示账号}\label{ux6f14ux793aux8d26ux53f7}
 \addcontentsline{toc}{subsection}{14.3 演示账号}
@@ -2022,12 +2020,12 @@ cms-project/\\
 | |- guide/site-map.yaml 引导站点地图（受启动期校验）\\
 | |- templates/ 13 个 Thymeleaf 模板\\
 | `- static/ 17 个前端模块\\
-|- src/test/java/ 33 个单元测试\\
+|- src/test/java/ 38 个单元测试\\
 `- docs/\\
 |- 课程设计报告.md / .docx / .pdf 本文\\
 |- 需求分析.md 七场景、权限矩阵、跟踪矩阵\\
 |- 表结构说明.md 8 张表逐字段说明\\
-|- api.md 49 个操作的请求/响应示例\\
+|- api.md 50 个操作的请求/响应示例\\
 |- 测试记录.md 单测 / 实机联调 / 修掉的缺陷\\
 |- ai-log.md AI 交互与人工校验记录\\
 |- 实验总结.md 分工、问题、收获、不足\\

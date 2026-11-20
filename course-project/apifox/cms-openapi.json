@@ -3,12 +3,12 @@
   "info": {
     "title": "云章 CMS 接口",
     "version": "1.0.0",
-    "description": "《JAVA框架技术(一)》课程项目。统一响应 Result{code,message,data,traceId}；业务码 5 位，HTTP 状态码与业务码同时表达。鉴权为 Session Cookie（JSESSIONID）。\n\n导入方式：Apifox → 导入数据 → OpenAPI/Swagger → 选择本文件。导入后先调 /api/auth/login（admin/123456）建立 Cookie，其余接口即可直接用。"
+    "description": "《JAVA框架技术(一)》课程项目。基于 Spring MVC + MyBatis-Plus，统一响应 Result{code,message,data,traceId}；鉴权为 Session Cookie（JSESSIONID）。\n\n导入方式：Apifox → 导入数据 → OpenAPI/Swagger → 选择本文件。导入后先调 /api/auth/login（admin/123456）建立 Cookie，其余接口即可直接用。"
   },
   "servers": [
     {
-      "url": "http://localhost:8090",
-      "description": "本地开发"
+      "url": "http://127.0.0.1:18092",
+      "description": "本机 Tomcat 9 验证；正式端口以 Connector 配置为准"
     }
   ],
   "tags": [
@@ -302,6 +302,129 @@
           },
           "403": {
             "description": "无权限（40300/40301）"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/articles/sensitive-check": {
+      "post": {
+        "tags": [
+          "文章"
+        ],
+        "summary": "敏感信息预检",
+        "description": "供编辑页保存前检查标题、摘要和正文。仅返回命中类型、字段和区间，不回显原文；创建和修改接口仍会再次检查，命中时返回 40003。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "summary": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 200000
+                  }
+                },
+                "example": {
+                  "title": "文章标题",
+                  "summary": "文章摘要",
+                  "content": "正文内容"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "预检完成；safe 为是否安全，hits 不包含命中原文。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Result"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "safe": {
+                              "type": "boolean"
+                            },
+                            "hits": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  },
+                                  "start": {
+                                    "type": "integer"
+                                  },
+                                  "end": {
+                                    "type": "integer"
+                                  },
+                                  "masked": {
+                                    "type": "string",
+                                    "example": "***"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "code": 0,
+                  "message": "成功",
+                  "data": {
+                    "safe": false,
+                    "hits": [
+                      {
+                        "field": "content",
+                        "type": "邮箱",
+                        "start": 12,
+                        "end": 29,
+                        "masked": "***"
+                      }
+                    ]
+                  },
+                  "traceId": "8f3c1e2a4b6c7d9e",
+                  "timestamp": 1793096629245
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数不合法（40000）"
+          },
+          "401": {
+            "description": "未登录（40100）"
+          },
+          "403": {
+            "description": "缺少文章新建或修改权限（40300）"
           }
         },
         "security": [
