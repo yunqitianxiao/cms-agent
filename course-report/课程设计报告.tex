@@ -1288,9 +1288,59 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 
 \includegraphics[width=\linewidth]{media/image52.png}
 
-在 ApiFox 中打开具体接口后，可直接在可视化调试视图中维护请求。以用户分页查询接口 GET /api/users 为例，其查询参数被完整解析为 pageNum、pageSize、keyword、status、roleCode 共五项，每项标注了 integer 或 string 类型、默认值与启用状态，调试时只需勾选并修改参数值即可发送，无需手写原始 HTTP 报文；请求体、请求头、鉴权信息与前后置脚本同样以标签页形式分区管理。
+\textbf{接口模块全景。}导入后的接口按业务域组织为九个模块、共 49 个接口。左侧接口树以方法颜色区分请求类型，GET 为绿色、POST 为橙色、PUT 为蓝色、DELETE 为红色，每个接口后标注用例数。下面三张图自上而下给出接口树的三个连续区段。
 
-\includegraphics[width=\linewidth]{media/image61.png}
+\includegraphics[width=\linewidth]{media/image62.png}
+
+顶部是认证模块的四个接口，即登录、退出登录、注册、当前登录人；其后是文章模块的前半部分，包括分页查询（含一个“成功”用例）、新建文章、详情、修改、删除、提交审核与撤回。
+
+\includegraphics[width=\linewidth]{media/image63.png}
+
+文章模块的后半部分覆盖重新提交、审核通过、驳回、下架以及批量通过、批量下架等审核流转接口，连同分类模块的六个接口和用户模块的七个接口，即分页查询、新增、详情、修改资料、逻辑删除、启用停用、分配角色。
+
+\includegraphics[width=\linewidth]{media/image64.png}
+
+接口树底部是角色、日志、工作台、站内引导、前台五个模块，以及独立的数据模型、组件库与快捷请求入口。九个模块的接口数相加为 4+13+6+7+6+1+1+8+3=49，与 ApiFox 总览完全一致。
+
+\textbf{环境与前置 URL。}ApiFox 按环境管理前置 URL，规则是：当请求路径不是以 http:// 或 https:// 起始时，自动拼接当前环境的前置 URL，否则忽略前置 URL、直接使用完整地址。内置环境中测试环境指向 8090 端口、本地 Mock 指向 4523 端口，并没有本系统实际运行的 8081。
+
+\includegraphics[width=\linewidth]{media/image65.png}
+
+因此联调时把请求路径写成完整的 http://localhost:8081/ 形式，即可让 ApiFox 忽略前置 URL，直接把请求打到独立 Tomcat，而不必改动既有环境配置。
+
+\textbf{请求参数定义。}以文章分页查询接口 GET /api/articles 为例，其查询参数被完整解析为 pageNum、pageSize、keyword、status、categoryId、authorId、mine、sort 共八项，分别标注 integer、string、boolean 类型、默认值与说明，例如 pageNum 默认 1、pageSize 默认 10，mine 为布尔开关。调试时只需勾选并填写参数值即可发送，无需手写原始 HTTP 报文。
+
+\includegraphics[width=\linewidth]{media/image66.png}
+
+\textbf{真实请求与响应闭环。}文档是否可信，最终要靠真实发送检验。下面三个接口均打到 8081 上的真实系统，并通过了响应校验。
+
+首先是登录接口 POST /api/auth/login，请求体为真实凭据 admin/123456，返回 200、耗时 201ms、720 字节，校验通过；响应体 data 中含 id=1、username=admin、nickname=系统管理员、roleCodes=[ADMIN]，并通过 Set-Cookie 下发 JSESSIONID 建立会话。
+
+\includegraphics[width=\linewidth]{media/image67.png}
+
+其次是文章分页接口 GET /api/articles，返回 200、耗时 57ms、4.06K，校验通过；data 给出 total=20、pageNum=1、pageSize=10、pages=2 的分页结构，records 中是真实文章记录，每条都带标题、摘要、分类、作者、状态、时间与浏览量等字段。
+
+\includegraphics[width=\linewidth]{media/image68.png}
+
+再就是当前登录人接口 GET /api/auth/me，返回 200、耗时 23ms、645 字节，校验通过；data 回显当前会话用户 admin 及其 ADMIN 角色，验证了登录态在后续请求中被正确识别。
+
+\includegraphics[width=\linewidth]{media/image69.png}
+
+\textbf{数据模型。}除接口外，工程还在 ApiFox 中维护了 50 个数据模型，与 OpenAPI 的 schema 一一对应。下面两张连续区段展示了统一响应、分页、登录请求、文章、分类、用户、角色、权限、日志等模型，命名上以 Result 前缀表示响应包装、以 Request 后缀表示请求体，结构清晰。
+
+\includegraphics[width=\linewidth]{media/image70.png}
+
+\includegraphics[width=\linewidth]{media/image71.png}
+
+其中 Result 是所有接口共用的统一响应外壳，根节点为 object，含 code（integer）、message（string）、data（other，承载具体业务数据）、traceId（string）、timestamp（int64）五个字段。
+
+\includegraphics[width=\linewidth]{media/image72.png}
+
+核心实体 Article 的模型完整列出 17 个字段，包括主键 id、标题 title、摘要 summary、正文 content、分类 categoryId 与 categoryName、作者 authorId 与 authorName、状态 status、审核人 auditorId、审核意见 auditOpinion、下架原因 offlineReason、发布时间 publishTime、创建与更新时间 createTime 与 updateTime、浏览量 viewCount 以及乐观锁版本号 version，字段类型与数据库表结构一一对应。
+
+\includegraphics[width=\linewidth]{media/image73.png}
+
+\includegraphics[width=\linewidth]{media/image74.png}
 
 \subsection*{\texorpdfstring{\textbf{8.5 前端视觉体系与交互设计}}{8.5 前端视觉体系与交互设计}}\label{sec:frontend-visual}
 \addcontentsline{toc}{subsection}{8.5 前端视觉体系与交互设计}

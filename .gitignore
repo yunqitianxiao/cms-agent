@@ -10,3 +10,18 @@ logs/
 
 .DS_Store
 .env
+
+# LaTeX 编译中间产物
+*.aux
+*.toc
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.lof
+*.lot
+*.bbl
+*.blg
+*.nav
+*.snm
+*.vrb
