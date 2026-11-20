@@ -337,7 +337,54 @@ create\_time / update\_time & DATETIME & NOT NULL, 默认当前时间 / 自动�
 create\_by / update\_by & BIGINT & DEFAULT NULL & 操作人 \\
 \end{longtable}
 
-用户表是系统的身份锚点，所有认证和权限判定都从这里出发。主键采用自增 id，与业务字段 username 分离——username 是登录凭据，id 是稳定的内部引用，修改用户名不会波及所有关联表。username 设置唯一索引，注册时据此判断用户名是否已被占用。password 存储 BCrypt 加密结果，不存明文；实体类通过 @TableField(select=false) 屏蔽默认查询。status 取 1 启用、0 停用，停用账号在下次 HTTP 请求时被 LoginInterceptor 拦截。deleted 是逻辑删除标记，MyBatis-Plus 全局配置自动在所有查询中追加 deleted=0 条件，误删后可直接恢复。审计字段 createTime、updateTime、createBy、updateBy 由 MetaObjectHandler 统一填充，业务代码中不手写。索引 idx\_user\_status 覆盖按状态筛选用户的管理查询。
+\texttt{sys\_user} 是系统的身份锚点，所有认证与权限判定都从这张表出发。表里的关键字段可以分成四组：
+
+\begin{itemize}
+\item \textbf{身份组：}\texttt{id}（自增主键）、\texttt{username}（登录名，唯一索引 UK）、\texttt{password}（BCrypt 密文）
+\item \textbf{资料组：}\texttt{nickname}、\texttt{email}、\texttt{phone}
+\item \textbf{状态组：}\texttt{status}（1 启用 / 0 停用）、\texttt{deleted}（0 正常 / 1 逻辑删除）
+\item \textbf{审计组：}\texttt{create\_time}、\texttt{update\_time}、\texttt{create\_by}、\texttt{update\_by}
+\end{itemize}
+
+\noindent\textbf{一、密码存储：BCrypt 密文}
+
+\texttt{password} 不存明文，存的是 BCrypt 单向哈希结果，只能从密码算出密文、不能反过来推。它有三个特性：
+
+\begin{itemize}
+\item \textbf{不可逆：}即使别人拿到了密文，也无法反推出原始密码。
+\item \textbf{自带随机盐：}就算两个人密码完全一样，存进数据库的密文也不同，可以防止黑客拿“明文$\leftrightarrow$密文对照表”（彩虹表）批量破解。
+\item \textbf{计算成本可调：}算法故意算得慢，让逐个试密码的暴力破解代价很高。
+\end{itemize}
+
+登录验证时并不解密：用户输入密码后，系统把这次输入再做一次哈希，和库里存的密文比对，一致才允许登录。
+
+\noindent\textbf{二、\texttt{status} 与 \texttt{deleted}：两个独立维度}
+
+\texttt{status} 管的是“账号能不能用”。1 启用时账号状态正常，可以登录并使用各项功能；0 停用时，账号本身和里面的资料都还留在数据库里、一条都不会删，只是这个账号再登录、再发请求时，登录拦截器 \texttt{LoginInterceptor}（一道在请求进入业务前专门检查登录状态的关卡）会先发现它是停用状态，直接挡在门外并提示“账号停用”。停用是可逆的，管理员在用户管理页把 \texttt{status} 改回 1，账号立刻恢复。
+
+\texttt{deleted} 管的是“数据还显不显示”。0 正常时数据在列表里正常显示；1 逻辑删除时，并不真正从数据库抹掉这条记录，只是把 \texttt{deleted} 标记改成 1，之后框架每执行一次查询都会自动追加 \texttt{deleted=0} 条件，所以被删的数据在页面上怎么都查不到，但物理上还躺在表里。误删之后把 \texttt{deleted} 改回 0，数据就能重新显示，相当于从回收站还原。
+
+两者的区别是：\texttt{status} 是临时性冻结，账号还看得见、只是进不去；\texttt{deleted} 是让数据从界面彻底消失。
+
+\noindent\textbf{三、审计字段：追溯责任}
+
+\texttt{create\_by}、\texttt{update\_by} 分别记录这条数据“是谁创建的”“是谁最后修改的”，存的是操作人的用户 id；\texttt{create\_time}、\texttt{update\_time} 分别记录创建时间和最后修改时间。这四个字段不需要在业务代码里手动赋值，由框架的 \texttt{MetaObjectHandler} 组件自动填充：新增数据时自动写入当前时间和当前登录用户（\texttt{create\_time}、\texttt{create\_by}），修改数据时自动写入修改时间和修改人（\texttt{update\_time}、\texttt{update\_by}）。
+
+\noindent\textbf{三个设计考点（问答）}
+
+\noindent\textbf{问：}为什么主键用自增 id，而不直接用 \texttt{username}？
+
+\noindent\textbf{答：}这是主键与业务键分离。\texttt{username} 是登录凭据，\texttt{id} 是供其他表引用的稳定内部编号；改用户名时外键引用的是 \texttt{id}，不会牵连关联表。
+
+\noindent\textbf{问：}\texttt{password} 为什么加 \texttt{@TableField(select=false)}？它和 BCrypt 是什么关系？
+
+\noindent\textbf{答：}两者管的环节不同，配合起来构成“纵深防御”。BCrypt 管存储环节，保证存进数据库的是不可逆密文，万一数据库被拖库、密文被偷走，攻击者也还原不出原密码，这是泄露之后的兜底。\texttt{@TableField(select=false)} 管使用环节，让 MyBatis-Plus 执行普通查询时直接跳过 \texttt{password} 列，查出来的用户对象里压根不含密码；否则密文会被装进用户对象，可能跟着接口返回前端、写进日志或缓存。密文虽然不可逆，但少一个地方传递就少一份暴露风险，这是尽量让密文不离开数据库。
+
+打个比方：BCrypt 像把财物锁进保险柜，屋子进了贼也拿不走；\texttt{@TableField(select=false)} 像平时根本不把财物从保险柜里拿出来摆在桌面上，减少被人接触的机会。一句话记忆：BCrypt 是“泄露了也破解不了”，\texttt{@TableField(select=false)} 是“尽量让它没机会泄露”。
+
+\noindent\textbf{问：}\texttt{deleted} 逻辑删除是什么？
+
+\noindent\textbf{答：}删用户不是真 DELETE，而是把 \texttt{deleted} 改成 1，框架查询自动追加 \texttt{deleted=0}，相当于“扔回收站”而不是“粉碎文件”，误删能恢复。
 
 
 \subsection*{\texorpdfstring{\textbf{4.2 sys\_role 角色表}}{4.2 sys\_role 角色表}}\label{sys_role-ux89d2ux8272ux8868}
