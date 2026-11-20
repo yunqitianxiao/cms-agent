@@ -418,7 +418,41 @@ status & TINYINT & NOT NULL DEFAULT 1 & 启停 \\
 deleted 等审计字段 & --- & 同上 & --- \\
 \end{longtable}
 
-角色表把角色编码和角色名称分开存储。判断权限时只看 role\_code，不看 role\_name——这样名称可以随时修改而不影响业务逻辑。整个系统一共有四个预置角色（GUEST、AUTHOR、AUDITOR、ADMIN），编码在 RoleCode 常量类里集中定义，与建表脚本中的数据一一对应。sort 控制角色列表的展示顺序，status 控制启用和停用，停用的角色无法分配给用户。
+角色表的关键字段同样分成四组：
+
+\begin{itemize}
+\item \textbf{身份组：}\texttt{id}（自增主键）、\texttt{role\_code}（角色编码，唯一索引 UK）
+\item \textbf{展示组：}\texttt{role\_name}（展示名）、\texttt{description}（角色描述）、\texttt{sort}（展示顺序）
+\item \textbf{状态组：}\texttt{status}（1 启用 / 0 停用）、\texttt{deleted}（0 正常 / 1 逻辑删除）
+\item \textbf{审计组：}\texttt{create\_time}、\texttt{update\_time}、\texttt{create\_by}、\texttt{update\_by}
+\end{itemize}
+
+\noindent\textbf{一、四个预置角色}
+
+系统初始化时内置四个角色，和建表脚本中的数据一一对应：
+
+\begin{itemize}
+\item \textbf{GUEST：}游客
+\item \textbf{AUTHOR：}作者，撰写并管理自己的文章
+\item \textbf{AUDITOR：}审核员，负责审核待发布的文章
+\item \textbf{ADMIN：}管理员，拥有系统最高权限
+\end{itemize}
+
+\noindent\textbf{二、\texttt{sort} 与 \texttt{status}}
+
+\texttt{sort} 控制展示顺序，数字越小，角色在列表里排得越靠前。\texttt{status} 控制启停：1 启用时角色可以正常分配给用户；0 停用时角色保留在库里，但不能再分配给用户，重新置 1 即可恢复。
+
+\noindent\textbf{三、\texttt{deleted} 与审计字段}
+
+\texttt{deleted} 做逻辑删除。0 正常时角色在列表中正常显示；1 逻辑删除时，删除角色不真正执行 DELETE，只是把 \texttt{deleted} 改成 1，之后框架每次查询都自动追加 \texttt{deleted=0}，被删角色在页面上查不到，但数据物理上还留在表里，需要时改回 0 即可恢复。
+
+审计字段方面，\texttt{create\_time}、\texttt{update\_time} 分别记录角色的创建时间和最后修改时间，\texttt{create\_by}、\texttt{update\_by} 分别记录创建人、最后修改人的用户 id，用于事后追溯。这四个字段不由业务代码手写，由 \texttt{MetaObjectHandler} 自动填充：新增时写入 \texttt{create\_time}、\texttt{create\_by}，修改时写入 \texttt{update\_time}、\texttt{update\_by}。
+
+\noindent\textbf{设计考点（问答）}
+
+\noindent\textbf{问：}停用一个角色意味着什么？
+
+\noindent\textbf{答：}角色数据不会被删除，只是不能再分配给用户，相当于把这个岗位“暂停招聘”；需要重新启用时把 \texttt{status} 改回 1 即可，是可逆操作。
 
 
 \subsection*{\texorpdfstring{\textbf{4.3 sys\_permission 权限点表}}{4.3 sys\_permission 权限点表}}\label{sys_permission-ux6743ux9650ux70b9ux8868}
