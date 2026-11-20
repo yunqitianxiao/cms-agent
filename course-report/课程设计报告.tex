@@ -23,7 +23,7 @@
 \usepackage{listings}
 \lstset{
   language=Java,
-  basicstyle=\footnotesize\ttfamily,
+  basicstyle=\zihao{-5}\ttfamily,
   keywordstyle=\color{blue!60!black}\bfseries,
   commentstyle=\color{green!45!black},
   stringstyle=\color{red!60!black},
@@ -46,7 +46,7 @@
   framesep=8pt,
   rulecolor=\color{gray!45},
   backgroundcolor=\color{gray!5},
-  basicstyle=\footnotesize\ttfamily,
+  basicstyle=\zihao{-5}\ttfamily,
   keywordstyle={},
   commentstyle={},
   stringstyle={},
@@ -81,6 +81,7 @@
 
 \usepackage{etoolbox}
 \AtBeginEnvironment{longtable}{\small}
+\AtBeginEnvironment{verbatim}{\zihao{-5}}
 
 \hypersetup{
   pdftitle={企业级 CMS 内容管理系统 · 课程设计报告},
