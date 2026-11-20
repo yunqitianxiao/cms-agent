@@ -1,0 +1,103 @@
+digraph LayeredArchitecture {
+  rankdir=TB;
+  graph [fontname="Microsoft YaHei", fontsize=15, labelloc=t,
+         label="CMS 内容管理系统 · 分层架构图",
+         nodesep=0.35, ranksep=0.55, pad=0.4, compound=true, splines=polyline];
+  node [fontname="Microsoft YaHei", fontsize=10.5, shape=box,
+        style="rounded,filled", fillcolor="#FFFFFF", penwidth=1.2,
+        margin="0.16,0.10"];
+  edge [fontname="Microsoft YaHei", fontsize=9.5, arrowsize=0.7, penwidth=1.0];
+
+  /* ============ 启动期 · 站点地图 ============ */
+  subgraph cluster_bootstrap {
+    label="启动期 · 站点地图（C1–C5 校验不过就不启动）";
+    fontsize=12; color="#B09A3C"; fillcolor="#FBF6DD"; style="rounded,filled";
+    node [color="#B09A3C"];
+    collector [label="SiteMapCollector\n反射 RequestMappingHandlerMapping"];
+    validator [label="SiteMapValidator\n卡片唯一 · 权限码存在 · 路由不重复"];
+    collector -> validator [color="#B09A3C"];
+    { rank=same; collector; validator; }
+  }
+
+  /* ============ 表现层 ============ */
+  subgraph cluster_view {
+    label="表现层 · Thymeleaf 模板 + 原生 ES Module";
+    fontsize=12; color="#3B6FD4"; fillcolor="#E8F0FE"; style="rounded,filled";
+    node [color="#3B6FD4"];
+    view_pages [label="业务页面\n登录/注册 · 工作台 · 文章 · 审核\n分类 · 用户 · 角色 · 日志 · 前台"];
+    guide_js  [label="guide.js 站内引导悬浮球\n把页面渲染成卡片"];
+    { rank=same; view_pages; guide_js; }
+  }
+
+  /* ============ 接入层 ============ */
+  subgraph cluster_mvc {
+    label="接入层 · Spring MVC";
+    fontsize=12; color="#2F8F8F"; fillcolor="#E3F3F3"; style="rounded,filled";
+    node [color="#2F8F8F"];
+    trace_filter [label="TraceIdFilter\n每请求一个 traceId"];
+    login_inter  [label="LoginInterceptor\nSession 登录态\n未登录 401 / 跳登录"];
+    controller   [label="Controller\n@Valid 参数校验 · RESTful 路由"];
+    { rank=same; trace_filter; login_inter; controller; }
+  }
+
+  /* ============ 横切关注点 · Spring AOP ============ */
+  subgraph cluster_aop {
+    label="横切关注点 · Spring AOP（以切面织入各层）";
+    fontsize=12; color="#3E9C68"; fillcolor="#EAF7EF"; style="rounded,filled";
+    node [color="#3E9C68"];
+    gex         [label="GlobalExceptionHandler\n统一 Result + 业务错误码"];
+    log_aspect  [label="LogAspect\n@OperLog → sys_log\n写入前脱敏 · 独立事务"];
+    perm_aspect [label="PermissionAspect\n@RequirePermission（ANY / ALL）"];
+    { rank=same; gex; log_aspect; perm_aspect; }
+  }
+
+  /* ============ 业务层 ============ */
+  subgraph cluster_service {
+    label="业务层 · Service（职责单一，模块间只经 service / dto / vo 通信）";
+    fontsize=12; color="#7B5EB0"; fillcolor="#EFEAF7"; style="rounded,filled";
+    node [color="#7B5EB0"];
+    article_svc  [label="ArticleService\n状态机 · 乐观锁 · 批量逐条容错"];
+    category_svc [label="CategoryService\n三级树 · 循环与删除保护"];
+    user_svc     [label="UserService / RoleService\n账号 · 角色 · 权限分配"];
+    log_svc      [label="LogService\n操作日志分页查询"];
+    guide_svc    [label="GuideService\nL0 规则路由 · L1 模型通道"];
+    { rank=same; article_svc; category_svc; user_svc; log_svc; guide_svc; }
+  }
+
+  /* ============ 持久层 ============ */
+  subgraph cluster_persistence {
+    label="持久层 · MyBatis-Plus";
+    fontsize=12; color="#7B5EB0"; fillcolor="#F3EEFA"; style="rounded,filled";
+    node [color="#7B5EB0"];
+    mapper   [label="Mapper / XML\n复杂 SQL 与多表 join"];
+    plugins  [label="分页插件 · @Version 乐观锁\n@TableLogic 逻辑删除"];
+    handlers [label="MetaObjectHandler 自动填充\nBlockAttackInnerInterceptor 防全表"];
+    { rank=same; mapper; plugins; handlers; }
+  }
+
+  /* ============ 数据层 ============ */
+  subgraph cluster_data {
+    label="数据层";
+    fontsize=12; color="#D08A3E"; fillcolor="#FDF0E2"; style="rounded,filled";
+    node [color="#D08A3E"];
+    db [label="MySQL 8 · cms_db\n用户 / 角色 / 权限 / 关联×2\n分类 / 文章 / 日志", shape=cylinder];
+  }
+
+  /* ============ 主链：锚定垂直顺序（含不可见边） ============ */
+  validator -> view_pages   [style=invis];
+  view_pages -> controller  [color="#3B6FD4", label="HTTP"];
+  controller -> log_aspect  [style=invis];
+  log_aspect -> article_svc [style=invis];
+  article_svc -> mapper     [color="#7B5EB0"];
+  mapper -> db              [color="#D08A3E", label="SQL"];
+
+  /* ============ 语义关系（虚线，不影响布局） ============ */
+  guide_js -> guide_svc [style=dashed, color="#3E9C68",
+                         label="卡片 / 建议", constraint=false];
+  validator -> guide_svc [style=dashed, color="#B09A3C",
+                          label="站点地图快照", constraint=false];
+  log_aspect -> controller [style=dashed, color="#3E9C68",
+                            dir=back, constraint=false];
+  perm_aspect -> article_svc [style=dashed, color="#3E9C68",
+                              constraint=false];
+}
