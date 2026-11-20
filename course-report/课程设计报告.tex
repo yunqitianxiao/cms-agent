@@ -888,15 +888,8 @@ sys\_role\_permission & 联合 PK (role\_id, perm\_id) & 双向 FK & idx\_rp\_pe
 \noindent\textbf{答：}联合主键按 \texttt{user\_id} 在前、\texttt{role\_id} 在后排序，只按 \texttt{role\_id} 查询时受最左前缀限制、用不上主键；单独给 \texttt{role\_id} 建索引，反向查询才能快速定位。
 
 
-\subsection*{\texorpdfstring{\textbf{4.8 六表关联与约束规范}}{4.8 六表关联与约束规范}}\label{ux7ea6ux675fux89c4ux8303ux6c47ux603b}
-\addcontentsline{toc}{subsection}{4.8 六表关联与约束规范}
-
-六张主表和两张关联表形成如下关系：sys\_user 和 sys\_role 通过 sys\_user\_role 建立多对多关联，sys\_role 和 sys\_permission 通过 sys\_role\_permission 建立多对多关联。一次权限判断需要穿越这四张表——从当前用户找到其所有角色，再从角色找到所有权限点，缺任何一张表都无法完成判断。cms\_article 分别通过外键连接到 cms\_category（文章属于哪个分类）和 sys\_user（文章由谁撰写、由谁审核），前台文章列表从这三张表中一次取出完整信息。cms\_category 通过 parent\_id 自关联形成树形结构，三级深度由服务端推导 level 值控制。sys\_log 以弱引用指向 sys\_user，不与任何用户账号直接绑定，确保日志生命周期独立于业务数据。
-
-所有表的共约束是：主表用自增 id 做主键，业务键与主键分离，业务键的变更不牵动外键体系。关联表用联合主键取代自增 id，使数据库在插入层面即能拒绝重复关联。必填列全部设定 NOT NULL 和默认值，避免 NULL 比较的语义陷阱。除 sys\_permission 外所有表均支持逻辑删除（deleted 字段）。所有表的字符集统一为 utf8mb4，确保中文内容与 emoji 字符不截断。每条索引的建立都对应一个可枚举的具体查询路径，不加"以防万一"的冗余索引。
-
-\subsection*{\texorpdfstring{\textbf{4.9 数据库 E-R 图}}{4.9 数据库 E-R 图}}\label{ux6570ux636eux5e93-e-r-ux56fe}
-\addcontentsline{toc}{subsection}{4.9 数据库 E-R 图}
+\subsection*{\texorpdfstring{\textbf{4.8 数据库 E-R 图}}{4.8 数据库 E-R 图}}\label{ux6570ux636eux5e93-e-r-ux56fe}
+\addcontentsline{toc}{subsection}{4.8 数据库 E-R 图}
 
 \includegraphics[width=\linewidth]{media/image1.png}
 
