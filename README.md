@@ -1,6 +1,6 @@
 # cms-agent
 
-> 本仓库现还包含课程项目快照与报告工作副本，见 README-course-project.md。课程项目的 Spring MVC 运行说明见 course-project/README-SSM.md。
+> 本仓库现还包含课程项目快照与报告工作副本，见 README-course-project.md。课程项目的 Spring MVC 运行说明见 course-project/README.md。
 
 企业级 CMS 课程项目里的 **M4 智能体与运维** 模块及其依赖的公共层，单独抽出来按 15 天推进。
 

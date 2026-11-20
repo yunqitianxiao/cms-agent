@@ -1,188 +1,81 @@
-# 云章 CMS（历史 Spring Boot 版）
+# 云章 CMS（Spring MVC / SSM）
 
-> 当前 SSM 版本说明见 README-SSM.md。以下内容保留原版启动和功能记录供追溯；Spring Boot 启动命令不适用于现在的 cms.war。
+《JAVA 框架技术（一）》课程项目。基于传统 **Spring + Spring MVC + MyBatis-Plus（SSM）** 的内容管理系统，使用 Java 11 编译、打包为 WAR 部署到外置 Tomcat 9，**不依赖 Spring Boot 或内嵌 Tomcat**。系统包含文章全流程管理、三级分类、基于角色的权限控制、操作日志，以及一个能感知全站结构的站内引导智能体。
 
-《JAVA 框架技术（一）》课程项目。Spring Boot + MyBatis-Plus + Thymeleaf 的内容管理系统，带一个"知道整个站点结构"的站内引导智能体。
+本目录是该课程项目的独立工程，与仓库根的 cms-agent（Spring Boot 模块）互不依赖，可单独构建。
 
----
-
-## 一、打开能干什么
-
-登录后左侧是菜单，按角色自动裁剪。每个页面能做的事情如下。
-
-### 工作台 `/app/dashboard`
-- 看到自己的草稿、审核中、被驳回、已发布各有多少篇（实时查库）。
-- 审核员和管理员还能看到全站待审核数、已发布数、分类数、账号数。
-- 右侧"下一步可以做什么"由引导助手根据你的真实稿件状态给出建议，点一条就能问它。
-
-### 文章列表 `/app/articles`
-- 按关键词、状态、分类、是否只看我的来筛选，可按更新时间/创建时间/发布时间/阅读量/标题排序。
-- 标题点开是全文弹窗；被驳回的文章能看到审核意见。
-- 行内操作随状态变化：草稿可编辑/提交/删除，待审核可撤回（审核员还能通过/驳回），已发布可去前台或下架，已下架可重新提交。
-- 勾选多篇可批量通过或批量下架，失败项逐条返回原因，不会一条坏数据拖垮整批。
-
-### 写文章 `/app/article-edit`
-- 填标题、摘要、正文、分类，存草稿或直接提交审核。
-- 被驳回的文章会显示审核意见；处于待审核/已发布/已下架的文章会锁定表单并说明原因。
-- 两个编辑同时改同一篇，后保存的会被乐观锁拦下并提示刷新。
-
-### 内容审核 `/app/review`
-- 只列待审核稿件，可按提交先后处理。
-- 通过后立即发布到前台；驳回必须写意见。
-- 不能审核自己提交的文章；批量通过时自己的稿件不参与勾选。
-
-### 分类管理 `/app/categories`
-- 树形展示，最多三级；新增一级分类或在任意节点下加子分类。
-- 调整排序、启用/停用；有子分类或挂着文章的分类不能删除。
-
-### 用户管理 `/app/users`
-- 搜索、按角色/状态筛选；新增账号、改昵称和联系方式、重置密码、分配角色。
-- 停用账号立即下线；最后一个可用管理员停不掉也删不掉。
-
-### 角色与权限 `/app/roles`
-- 左边角色、右边权限点，勾选即授权，保存后对下一个请求生效（不用重新登录）。
-- 管理员角色不可删除，且必须保留「角色管理」权限，防止把所有人锁在门外。
-
-### 操作日志 `/app/logs`
-- 按类型（登录/文章/审核/分类/用户/角色/引导问答）、结果、关键词、日期范围查询。
-- 筛选「被拦截」能看到所有越权尝试；入参中的密码等字段已替换为 `***`。
-
-### 前台 `/portal`
-- 游客无需登录，按分类浏览已发布文章；点开正文阅读量 +1。
-- 草稿、待审核、已驳回、已下架的内容在前台不可见。
-
-### 站内引导（右下角悬浮球）
-- 点开后是**整个系统的页面卡片网格**：每张卡写明这个页面干什么、按哪几步操作、哪里容易踩坑。
-- 直接提问（如"文章被驳回了怎么改"）会命中相关卡片；卡片可以就地展开看步骤，点"打开这个页面"跳转并高亮目标输入框。
-- 当前角色无权访问的卡片会置灰并说明缺什么权限，不会假装它能用。
-- 点右上角 `⚙` 可以填自己的 DeepSeek API Key（只存在本次登录的会话里），或点"测试连接"确认能不能用；不填也能用，只是走关键词规则。
-
----
-
-## 二、快速开始
-
-### 1. 建库
-
-本机 root 走 `unix_socket` 认证，需要 sudo：
-
-```bash
-sudo bash db/init.sh
-```
-
-脚本会创建数据库 `cms_db` 和应用账号 `cmsapp`，导入表结构和演示数据。请在运行前通过 DB_PASS 环境变量设置数据库口令；重复执行会清空重来。
-
-### 2. 启动
-
-```bash
-mvn spring-boot:run
-```
-
-打开 http://localhost:8090 。（本机 8080 被系统 tomcat9 占用，配置里改用了 8090）
-
-### 3. 演示账号（密码都是 `123456`）
-
-| 账号 | 角色 | 能做什么 |
-|---|---|---|
-| `admin` | 管理员 | 全部 |
-| `author` | 作者 | 写稿、改自己的稿、提交审核 |
-| `auditor` | 审核员 | 审核、发布、下架 |
-| `guest` | 游客 | 只读 + 用引导 |
-
----
-
-## 三、智能体是怎么"知道全站"的
-
-不是维护一份手写的页面清单，而是**启动时从代码里反射出来**：
-
-1. 遍历 `RequestMappingHandlerMapping` 里所有处理方法，读方法/类上的 `@GuideCard` 与 `@RequirePermission`，拼出页面、路由、所需权限。
-2. 与 `src/main/resources/guide/site-map.yaml`（只放文案：一句话说明、步骤、坑）合并。
-3. 启动期校验 C1–C5：卡片 id 唯一、受控 Controller 必须有卡片、权限码必须真实存在、yaml 不许凭空造页面、路由必须唯一且非空。
-
-**任何一条不满足，服务直接拒绝启动**。所以"某个页面不在引导里"不是演示时才会发现的问题，而是起不来的问题。
-
-回答分两层：
-
-- **L0 规则路由**（始终可用、离线可用）：中文 bigram 打分，标题/别名权重高，摘要/步骤权重低；低于阈值就回答"系统里没有这个功能"，不硬塞卡片。
-- **L1 模型通道**（需要密钥）：只有规则**没命中**时才问模型。OpenAI 兼容接口，只把候选卡片 id/title/summary 交给模型，返回的卡片 id 必须是站点地图的子集，否则丢弃。卡片内容从不经过模型，模型无法编造页面。
-
-密钥有两种来源，**不用改配置文件**：
-
-1. 登录后点右下角悬浮球 → 右上角 `⚙` → 粘贴自己的 DeepSeek API Key → 保存。密钥只写入**当前会话的服务器内存**：不落库、不写 localStorage、日志里显示为 `***`，退出登录即失效；界面上只回显尾号（`sk-…a1b2`）。
-2. 服务端配置：`export DEEPSEEK_API_KEY=sk-xxx` 后启动（或改 `application.yml` 的 `app.guide.llm.api-key`）。
-
-两者都没有时，引导完整工作在规则模式——答辩断网也能演示。设置面板里还有"测试连接"，直接显示是否可达、耗时多少、以及失败原因（已脱敏）。模型通道的总开关是 `app.guide.llm.enabled`，关掉后界面上的密钥输入也不会生效。
-
----
-
-## 四、技术栈与目录
+## 技术栈
 
 | 层 | 选型 |
 |---|---|
-| 运行环境 | JDK 11、Maven 3.9、MariaDB 10.6（MySQL 8 兼容） |
-| Web | Spring Boot 2.7.18、Spring MVC、Thymeleaf |
-| 持久层 | MyBatis-Plus 3.5.3.1（分页/乐观锁/逻辑删除/自动填充/防全表更新） |
+| 运行环境 | JDK 11+、Maven 3.8+、外置 Tomcat 9、MySQL 8 |
+| Web | Spring 5.3、Spring MVC、Thymeleaf |
+| 持久层 | MyBatis-Plus 3.5.3.1（分页 / 乐观锁 / 逻辑删除 / 自动填充 / 防全表更新） |
 | 鉴权 | Session + HandlerInterceptor + AOP `@RequirePermission` |
-| 密码 | `spring-security-crypto` 的 BCrypt（不引入完整 Spring Security） |
-| 前端 | Thymeleaf + 原生 ES Modules，无 npm 构建 |
+| 密码 | spring-security-crypto 的 BCrypt（不引入完整 Spring Security） |
+| 前端 | Thymeleaf + 原生 ES Modules，无 npm 构建链 |
+
+## 目录结构
 
 ```
-src/main/java/com/ylf/cms/
-├── auth/          登录拦截、权限切面、操作日志切面、UserContext
-├── common/        统一响应、异常、注解、常量、工具
-├── config/        MyBatis-Plus、MVC、TraceId、密码编码器、引导配置
-├── guide/         ★ 站内引导：注解、站点地图采集/校验、意图路由、LLM 通道
-└── module/
-    ├── article/   文章、状态机、工作台
-    ├── category/  分类树
-    ├── user/      登录注册、用户、角色
-    ├── log/       操作日志
-    └── portal/    前台与页面路由
+course-project/
+├── src/                          # 代码，标准 Maven 结构
+│   ├── main/java/com/ylf/cms/    # 按业务域分包：auth、content、catalog、ops、security、guide
+│   ├── main/resources/           # 配置、模板、静态资源、sql 脚本
+│   └── test/                     # 单元测试
+├── docs/                         # 过程文档
+│   ├── requirements/             # 需求分析、任务书
+│   ├── design/                   # 表结构说明、UI 布局、流程图
+│   ├── api/                      # OpenAPI 描述与接口文档
+│   ├── db/                       # 建库脚本与增量迁移
+│   └── 测试记录.md / 演示脚本.md / ai-log.md
+├── pom.xml
+└── README.md
 ```
 
----
+## 快速开始
 
-## 五、对应评分点
+### 1. 配置数据库连接
 
-| 评分项 | 落点 |
-|---|---|
-| 需求分析 | `docs/需求分析.md` |
-| 数据库设计（六表关联） | `docs/表结构说明.md`、`sql/schema.sql` |
-| 工程结构 | 按业务模块分包，common/config 与业务分离 |
-| 权限控制 | `PermissionAspect` + `@RequirePermission`（ANY/ALL），接口级校验 |
-| 分类管理 | `CategoryService` 三级树、循环与删除保护 |
-| 文章管理 | `ArticleStateMachine` 五态七迁，非法迁移 409 |
-| 运维/日志 | `LogAspect` 记录成功、被拦截、失败三类结果 |
-| 高级数据处理 | 状态机、乐观锁、批量逐条容错 |
-| MyBatis-Plus 特性 | 分页、`@Version`、`@TableLogic`、`MetaObjectHandler`、`BlockAttackInnerInterceptor` |
-| SQL 优化 | 列表页单条 join 消除 N+1；排序字段白名单防注入；索引见建表脚本 |
-| RESTful + ApiFox | `docs/api.md` + `apifox/cms-openapi.json`（OpenAPI 3.0，可直接导入），统一 `Result<T>` 与业务码 |
-| AI 应用 | `guide` 包 + `docs/ai-log.md` |
-
----
-
-## 六、测试
+连接信息通过环境变量提供，不写入仓库：
 
 ```bash
-mvn test
+export CMS_DB_URL="jdbc:mysql://127.0.0.1:3306/cms_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true"
+export CMS_DB_USERNAME="你的数据库账号"
+export CMS_DB_PASSWORD="你的数据库密码"
 ```
 
-当前覆盖（4 个类、22 个用例）：
+首次建库可执行 `docs/db/init.sh`（需 root，会重建数据库并导入演示数据，勿在已有库上执行）；保留数据的增量迁移见 `docs/db/upgrade-20261119.sql`。
 
-- `ArticleStateMachineTest`：七条合法边、非法迁移报 40901、可删除状态。
-- `SiteMapValidatorTest`：C1–C5 每条规则各用一个会在违反时报错的输入验证。
-- `IntentRouterTest`：口语提问命中、无关问题落空、阈值生效。
-- `GuideLlmServiceTest`：密钥三来源（会话 / 服务端配置 / 无）、清除后回落、格式校验。
+### 2. 构建与部署
 
-都是纯单元测试，不需要数据库。实机联调记录（启动期校验、四账号全链路、接口异常、本轮修掉的 6 个缺陷）见 `docs/测试记录.md`。
+在本目录执行：
 
----
+```bash
+mvn clean test package
+```
 
-## 七、已知边界
+产物为 `target/cms.war`。将其重命名为 `ROOT.war` 部署到外置 Tomcat 9 的 `webapps/`，启动后访问站点根路径（具体端口以 Tomcat Connector 为准，本项目独立实例使用 8081）。
 
-- 正文是纯文本（保留换行），没有富文本编辑器。
-- 分类不支持更换上级，需要移动时新建分类再迁移文章。
-- 引导的 L0 规则适合短问句；长段落提问可能命中多张卡片，需要用户自己挑。
-- 审计日志只记录写操作与登录，不记录每次读请求（否则日志量会盖过业务数据）。
-- 文章列表对已登录用户可见全部稿件元信息（标题、摘要、状态）；**未发布正文**只有作者本人、审核员和管理员能读，其他角色请求详情会被 403。
+### 3. 演示账号
 
-演示流程见 `docs/演示脚本.md`，接口清单见 `docs/api.md`，测试与验收清单见 `docs/测试记录.md`。
+初始密码统一为 `123456`：
+
+| 账号 | 角色 | 权限 |
+|---|---|---|
+| admin | 管理员 | 全部 |
+| author | 作者 | 写稿、改自己的稿、提交审核 |
+| auditor | 审核员 | 审核、发布、下架 |
+| guest | 游客 | 只读 + 站内引导 |
+
+## 文档导航
+
+- 需求与任务：`docs/requirements/`
+- 设计与流程图：`docs/design/`
+- 接口文档与 OpenAPI：`docs/api/`（OpenAPI 3.0 可直接导入 ApiFox）
+- 数据库脚本：`docs/db/`
+- 课程设计报告（LaTeX 源码与配图）：仓库根 `../course-report/`，主文件 `../course-report/课程设计报告.tex`
+
+## 测试
+
+`mvn test` 覆盖状态迁移、敏感信息识别、日志递归脱敏、文章保护与业务域边界，均为纯单元测试、不依赖数据库；端到端联调记录见 `docs/测试记录.md`。
