@@ -851,7 +851,41 @@ sys\_user\_role & 联合 PK (user\_id, role\_id) & fk\_ur\_user、fk\_ur\_role &
 sys\_role\_permission & 联合 PK (role\_id, perm\_id) & 双向 FK & idx\_rp\_perm(perm\_id) & 角色-权限多对多 \\
 \end{longtable}
 
-两张关联表均采用联合主键，不使用自增 id。以 sys\_user\_role 为例，联合主键 (user\_id, role\_id) 本身就是唯一约束——对同一个用户重复授权同一个角色，INSERT 会直接触发主键冲突，数据库层面兜底。同时，按 user\_id 查该用户的全部角色可以走主键的最左前缀，不需要额外索引；附加索引 idx\_ur\_role(role\_id) 则覆盖反向查询——按 role\_id 列出拥有该角色的所有用户，用于删除角色前的引用检查。sys\_role\_permission 使用相同的设计，两表都有双向外键保证引用的数据不被单独删除。
+两张关联表 \texttt{sys\_user\_role} 和 \texttt{sys\_role\_permission} 是承载多对多关系的中间表，本身没有独立的业务含义，下面分四点讲它们的设计。
+
+\noindent\textbf{一、联合主键，不使用自增 id}
+
+关联表没有单独的 \texttt{id} 字段，直接把两个关联字段拼起来当主键。联合主键本身就是唯一约束：给同一个用户重复授权同一个角色，\texttt{INSERT} 时直接触发主键冲突，数据库层面拒绝重复数据，不依赖程序判断。
+
+\noindent\textbf{二、最左前缀与附加索引}
+
+先理解联合主键的存储顺序：\texttt{(user\_id, role\_id)} 在数据库里是按字段先后排好序的，先按 \texttt{user\_id} 排，\texttt{user\_id} 相同时再按 \texttt{role\_id} 排，类似电话簿先按姓排、同姓的再按名排。“最左前缀”指查询条件从最左边的字段开始，才能借用这套排序。
+
+查“用户 10 有哪些角色”，条件是 \texttt{user\_id=10}，正好是最左字段，能直接走联合主键快速定位，不用额外索引；查“角色 3 下有哪些用户”，条件只有 \texttt{role\_id=3}，它是第二个字段，跳过第一个字段后这套排序就用不上了，数据库只能逐行翻完整张表。
+
+所以要为第二个字段单独建索引：\texttt{idx\_ur\_role(role\_id)} 让反向查询也能快速定位，用于删除角色前检查“这个角色还分给了哪些人”；\texttt{sys\_role\_permission} 同理，\texttt{idx\_rp\_perm(perm\_id)} 让“查某个权限点被哪些角色拥有”也能走索引。
+
+\noindent\textbf{三、双向外键}
+
+先讲外键是什么：外键是表中指向另一张表主键的字段，数据库会强制校验它填的值在对方表里真实存在，防止出现“引用了一个根本不存在的用户”这种脏数据。“双向”指中间表的两个字段各建一个外键：\texttt{user\_id} 指向用户表，\texttt{role\_id} 指向角色表。
+
+它在删除时起保护作用：想删某个用户，但中间表里还挂着他的角色记录，数据库拒绝删除；想删某个角色，但这个角色还分给着某些用户，数据库同样拒绝。必须先删掉中间表里的关联记录（先解绑），才能删除用户或角色，保证不会出现指向空数据的悬空记录。
+
+\noindent\textbf{四、不做逻辑删除}
+
+先分清两个概念。逻辑删除不真正执行 \texttt{DELETE}，而是把 \texttt{deleted} 字段从 0 改成 1 打个标记，数据还留在表里、查询时自动过滤掉，需要时能恢复，相当于“扔进回收站”；物理删除则真正执行 \texttt{DELETE}，数据从表里彻底消失。
+
+关联表选择物理删除：解绑就是把中间表那条记录真正删掉，因为用户和角色的关系不需要保留历史、也不会恢复；而且如果逻辑删除，打了标记的记录还占着联合主键，将来想重新授权同一个角色反而会主键冲突。
+
+\noindent\textbf{设计考点（问答）}
+
+\noindent\textbf{问：}关联表为什么用联合主键，而不是自增 id？
+
+\noindent\textbf{答：}联合主键本身就是唯一约束，重复授权会在插入时直接冲突，数据库层面防重复；用自增 id 还要再建一个唯一索引才能达到同样效果，多此一举。
+
+\noindent\textbf{问：}有了联合主键，为什么还要额外加 \texttt{idx\_ur\_role} 索引？
+
+\noindent\textbf{答：}联合主键按 \texttt{user\_id} 在前、\texttt{role\_id} 在后排序，只按 \texttt{role\_id} 查询时受最左前缀限制、用不上主键；单独给 \texttt{role\_id} 建索引，反向查询才能快速定位。
 
 
 \subsection*{\texorpdfstring{\textbf{4.8 六表关联与约束规范}}{4.8 六表关联与约束规范}}\label{ux7ea6ux675fux89c4ux8303ux6c47ux603b}
