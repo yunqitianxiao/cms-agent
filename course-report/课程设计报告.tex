@@ -1145,6 +1145,8 @@ GET /api/guide/selfcheck & 返回站点地图自检结果 \\
 
 \includegraphics[width=\linewidth]{media/image39.png}
 
+分页查询：分页插件在插件层兜底，单页上限 200 条，统一返回总数与分页结构
+
 \subsubsection*{\texorpdfstring{\textbf{8.1.2 多维排序筛选}}{8.1.2 多维排序筛选}}\label{sec:sort}
 \addcontentsline{toc}{subsubsection}{8.1.2 多维排序筛选}
 
@@ -1154,12 +1156,16 @@ SortWhitelist 值得单独说明：ORDER BY 后面不能使用预编译占位符
 
 \includegraphics[width=\linewidth]{media/image40.png}
 
+多维排序：白名单映射物理字段，最多三个排序条件，非法字段被拦截
+
 \subsubsection*{\texorpdfstring{\textbf{8.1.3 批量处理}}{8.1.3 批量处理}}\label{sec:batch}
 \addcontentsline{toc}{subsubsection}{8.1.3 批量处理}
 
 批量处理由 ArticleService.batchApprove 与 batchOffline 实现，逐条容错，返回成功数与失败明细。
 
 \includegraphics[width=\linewidth]{media/image41.png}
+
+批量处理：逐条独立执行，返回成功数量与失败明细
 
 \subsubsection*{\texorpdfstring{\textbf{8.1.4 逻辑删除}}{8.1.4 逻辑删除}}\label{sec:logic-del}
 \addcontentsline{toc}{subsubsection}{8.1.4 逻辑删除}
@@ -1168,12 +1174,16 @@ SortWhitelist 值得单独说明：ORDER BY 后面不能使用预编译占位符
 
 \includegraphics[width=\linewidth]{media/image42.png}
 
+逻辑删除：数据保留并标记 deleted，默认查询自动过滤、可恢复
+
 \subsubsection*{\texorpdfstring{\textbf{8.1.5 数据自动填充}}{8.1.5 数据自动填充}}\label{sec:autofill}
 \addcontentsline{toc}{subsubsection}{8.1.5 数据自动填充}
 
 数据自动填充用 AuditMetaObjectHandler 实现，createTime、updateTime、createBy、updateBy 由拦截器写入，业务代码不手写。
 
 \includegraphics[width=\linewidth]{media/image43.png}
+
+自动填充：创建与更新等审计字段由处理器统一写入
 
 \subsection*{\texorpdfstring{\textbf{8.2 MyBatis-Plus 高级特性整合}}{8.2 MyBatis-Plus 高级特性整合}}\label{mybatis-plus-ux9ad8ux7ea7ux7279ux6027ux6574ux5408}
 \addcontentsline{toc}{subsection}{8.2 MyBatis-Plus 高级特性整合}
@@ -1200,6 +1210,8 @@ public MybatisPlusInterceptor mybatisPlusInterceptor() {
 
 \includegraphics[width=\linewidth]{media/image44.png}
 
+拦截器链：分页、乐观锁、防全表三个拦截器有序装配
+
 \subsubsection*{\texorpdfstring{\textbf{8.2.2 插件顺序是硬约束}}{8.2.2 插件顺序是硬约束}}\label{sec:mp-order}
 \addcontentsline{toc}{subsubsection}{8.2.2 插件顺序是硬约束}
 
@@ -1209,12 +1221,16 @@ public MybatisPlusInterceptor mybatisPlusInterceptor() {
 
 \includegraphics[width=\linewidth]{media/image45.png}
 
+插件运行：三个拦截器按序生效，错序会导致静默失败
+
 \subsubsection*{\texorpdfstring{\textbf{8.2.3 条件构造器}}{8.2.3 条件构造器}}\label{sec:mp-wrapper}
 \addcontentsline{toc}{subsubsection}{8.2.3 条件构造器}
 
 条件构造器用 LambdaQueryWrapper，字段引用类型安全，避免手写列名。逻辑删除用 @TableLogic 全局开关，所有查询自动过滤；自动填充用 MetaObjectHandler，审计四字段统一写入，这两点见 8.1。
 
 \includegraphics[width=\linewidth]{media/image46.png}
+
+条件构造器：Lambda 引用类型安全，查询自动过滤逻辑删除
 
 \subsection*{\texorpdfstring{\textbf{8.3 SQL 专项优化：列表页的 N+1}}{8.3 SQL 专项优化：列表页的 N+1}}\label{sql-ux4e13ux9879ux4f18ux5316ux5217ux8868ux9875ux7684-n1}
 \addcontentsline{toc}{subsection}{8.3 SQL 专项优化：列表页的 N+1}
@@ -1227,6 +1243,8 @@ public MybatisPlusInterceptor mybatisPlusInterceptor() {
 朴素写法：1 条 SQL 查 20 条文章，循环里再各查 20 次分类名和作者名，共 41 条 SQL。文章一多，查询次数线性上涨，列表页越来越慢。
 
 \includegraphics[width=\linewidth]{media/image47.png}
+
+问题诊断：朴素写法产生 1+N 条查询，随数据量线性上涨
 
 \subsubsection*{\texorpdfstring{\textbf{8.3.2 三表 join 方案}}{8.3.2 三表 join 方案}}\label{sec:n1-join}
 \addcontentsline{toc}{subsubsection}{8.3.2 三表 join 方案}
@@ -1247,12 +1265,16 @@ WHERE a.deleted = 0
 
 \includegraphics[width=\linewidth]{media/image48.png}
 
+三表 join：展示字段一次带出，列表页仅两条 SQL
+
 \subsubsection*{\texorpdfstring{\textbf{8.3.3 判据与索引配合}}{8.3.3 判据与索引配合}}\label{sec:n1-criteria}
 \addcontentsline{toc}{subsubsection}{8.3.3 判据与索引配合}
 
 判据不是"看起来变快了"，而是把 mapper 日志开到 DEBUG 数 SQL 条数。动态条件全部用 \#\{\} 预编译；只有 ORDER BY 使用 \$\{\}，而它的值只可能由 SortWhitelist 从白名单生成。idx\_article\_query 覆盖默认视图的过滤与排序组合，分页插件限制单页 200 条。
 
 \includegraphics[width=\linewidth]{media/image49.png}
+
+判据核对：以 DEBUG 日志数 SQL 条数，配合覆盖索引
 
 \subsection*{\texorpdfstring{\textbf{8.4 RESTful 接口与 ApiFox 联调}}{8.4 RESTful 接口与 ApiFox 联调}}\label{restful-ux63a5ux53e3ux4e0e-apifox-ux8054ux8c03}
 \addcontentsline{toc}{subsection}{8.4 RESTful 接口与 ApiFox 联调}
@@ -1276,6 +1298,8 @@ WHERE a.deleted = 0
 HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开。
 
 \includegraphics[width=\linewidth]{media/image50.png}
+
+统一返回结构：code、message、data 与 traceId 字段
 
 \subsubsection*{\texorpdfstring{\textbf{8.4.2 业务码设计}}{8.4.2 业务码设计}}\label{sec:rest-code}
 \addcontentsline{toc}{subsubsection}{8.4.2 业务码设计}
@@ -1304,12 +1328,16 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 
 \includegraphics[width=\linewidth]{media/image51.png}
 
+业务码对照：五位业务码与 HTTP 状态码分离
+
 \subsubsection*{\texorpdfstring{\textbf{8.4.3 OpenAPI 与 ApiFox 联调}}{8.4.3 OpenAPI 与 ApiFox 联调}}\label{sec:rest-apifox}
 \addcontentsline{toc}{subsubsection}{8.4.3 OpenAPI 与 ApiFox 联调}
 
 接口文档与联调上，apifox/cms-openapi.json 采用 OpenAPI 3.0，可直接导入 ApiFox。文档与实现用脚本对账，所有操作、schema、路径与 Controller 双向差集为空。也就是说，没有文档里有而代码里没有的接口，也没有相反的情况。
 
 \includegraphics[width=\linewidth]{media/image52.png}
+
+ApiFox 项目总览：九个模块、49 个接口的接口主页
 
 \textbf{接口模块全景。}导入后的接口按业务域组织为九个模块、共 49 个接口。左侧接口树以方法颜色区分请求类型，GET 为绿色、POST 为橙色、PUT 为蓝色、DELETE 为红色，每个接口后标注用例数。下面三张图自上而下给出接口树的三个连续区段。
 
@@ -1335,6 +1363,8 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 
 \includegraphics[width=\linewidth]{media/image66.png}
 
+请求参数定义：分页接口八项查询参数及类型
+
 \textbf{真实请求与响应闭环。}文档是否可信，最终要靠真实发送检验。下面三个接口均打到 8081 上的真实系统，并通过了响应校验。
 
 首先是登录接口 POST /api/auth/login，请求体为真实凭据 admin/123456，返回 200、耗时 201ms、720 字节，校验通过；响应体 data 中含 id=1、username=admin、nickname=系统管理员、roleCodes=[ADMIN]，并通过 Set-Cookie 下发 JSESSIONID 建立会话。
@@ -1349,11 +1379,17 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 
 \includegraphics[width=\linewidth]{media/image69.png}
 
+当前登录人闭环：回显会话用户与角色
+
 \textbf{数据模型。}除接口外，工程还在 ApiFox 中维护了 50 个数据模型，与 OpenAPI 的 schema 一一对应。下面两张连续区段展示了统一响应、分页、登录请求、文章、分类、用户、角色、权限、日志等模型，命名上以 Result 前缀表示响应包装、以 Request 后缀表示请求体，结构清晰。
 
 \includegraphics[width=\linewidth]{media/image70.png}
 
+数据模型区段（一）：统一响应与基础请求模型
+
 \includegraphics[width=\linewidth]{media/image71.png}
+
+数据模型区段（二）：各业务实体模型
 
 其中 Result 是所有接口共用的统一响应外壳，根节点为 object，含 code（integer）、message（string）、data（other，承载具体业务数据）、traceId（string）、timestamp（int64）五个字段。
 
@@ -1363,7 +1399,11 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 
 \includegraphics[width=\linewidth]{media/image73.png}
 
+文章模型区段（一）：核心实体字段（上）
+
 \includegraphics[width=\linewidth]{media/image74.png}
+
+文章模型区段（二）：核心实体字段（下）
 
 \subsection*{\texorpdfstring{\textbf{8.5 前端视觉体系与交互设计}}{8.5 前端视觉体系与交互设计}}\label{sec:frontend-visual}
 \addcontentsline{toc}{subsection}{8.5 前端视觉体系与交互设计}
@@ -1377,12 +1417,16 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 
 \includegraphics[width=\linewidth]{media/image54.png}
 
+秘术灵体风：深紫夜空、玻璃拟态与法阵标识
+
 \subsubsection*{\texorpdfstring{\textbf{8.5.2 变量驱动与每页主题}}{8.5.2 变量驱动与每页主题}}\label{sec:per-page-theme}
 \addcontentsline{toc}{subsubsection}{8.5.2 变量驱动与每页主题}
 
 整套配色不写死在组件里，而是集中在根选择器的自定义属性中，涵盖底色、面板、文字、描边、品牌色、圆角与阴影，并额外提供一个品牌色 RGB 分量变量，便于在不同透明度下复用同一种颜色。页面启动时，layout.js 根据当前路径给 body 打上 data-page 标识，mystic.css 再按该标识覆盖品牌色变量，使八个后台页面各有专属主题色，例如工作台为秘术紫、文章列表为灵体青、写作为创作粉、审核为审核金、分类为翠绿、用户为天蓝、角色为品红、日志为薄荷。这里有一条刻意的边界：页面主题只覆盖品牌交互色，不触碰成功、警告、危险等语义色，因此已驳回的红、待审核的黄、已发布的绿在任何主题下都保持稳定语义。
 
 \includegraphics[width=\linewidth]{media/image55.png}
+
+变量驱动：根选择器自定义属性与每页主题色
 
 \subsubsection*{\texorpdfstring{\textbf{8.5.3 主题切换器与本地持久化}}{8.5.3 主题切换器与本地持久化}}\label{sec:theme-switcher}
 \addcontentsline{toc}{subsubsection}{8.5.3 主题切换器与本地持久化}
@@ -1391,7 +1435,11 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 
 \includegraphics[width=\linewidth]{media/image56.png}
 
+主题切换器（一）：悬浮调色盘与预设色点
+
 \includegraphics[width=\linewidth]{media/image57.png}
+
+主题切换器（二）：自定义取色与本地持久化
 
 \subsubsection*{\texorpdfstring{\textbf{8.5.4 表格列居中与前台沉浸阅读}}{8.5.4 表格列居中与前台沉浸阅读}}\label{sec:table-align}
 \addcontentsline{toc}{subsubsection}{8.5.4 表格列居中与前台沉浸阅读}
@@ -1405,9 +1453,15 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 
 \includegraphics[width=\linewidth]{media/image58.png}
 
+交互彩蛋（一）：灵体台词与法阵涟漪
+
 \includegraphics[width=\linewidth]{media/image59.png}
 
+交互彩蛋（二）：黑客指令矩阵字符雨
+
 \includegraphics[width=\linewidth]{media/image60.png}
+
+交互彩蛋（三）：彩蛋触发后的灵体暴走
 
 \section*{\texorpdfstring{\textbf{九、健壮性与稳定性设计}}{九、健壮性与稳定性设计}}\label{sec:robustness}
 \addcontentsline{toc}{section}{九、健壮性与稳定性设计}
@@ -1508,6 +1562,8 @@ HTTP 状态码表达协议层结果，业务码表达具体原因，二者分开
 \end{enumerate}
 
 \includegraphics[width=\linewidth]{media/image53.png}
+
+统一异常处理：全局分派与错误码归并
 
 \subsection*{\texorpdfstring{\textbf{9.4 异常处理流程图}}{9.4 异常处理流程图}}\label{sec:exc-flow}
 \addcontentsline{toc}{subsection}{9.4 异常处理流程图}
