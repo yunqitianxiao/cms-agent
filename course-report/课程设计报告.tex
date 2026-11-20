@@ -38,6 +38,25 @@
   showstringspaces=false,
   tabsize=4
 }
+% 目录树专用样式：矩形框 + 浅灰底，不显示行号、不做语法高亮
+\lstdefinestyle{treedir}{
+  language={},
+  numbers=none,
+  frame=single,
+  framesep=8pt,
+  rulecolor=\color{gray!45},
+  backgroundcolor=\color{gray!5},
+  basicstyle=\footnotesize\ttfamily,
+  keywordstyle={},
+  commentstyle={},
+  stringstyle={},
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  breaklines=false,
+  aboveskip=12pt,
+  belowskip=10pt
+}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, shapes.geometric}
 \usepackage[hidelinks]{hyperref}
@@ -632,7 +651,7 @@ sys\_role\_permission & 联合 PK (role\_id, perm\_id) & 双向 FK & idx\_rp\_pe
 \subsection*{\texorpdfstring{\textbf{6.1 目录分层}}{6.1 目录分层}}\label{ux76eeux5f55ux5206ux5c42}
 \addcontentsline{toc}{subsection}{6.1 目录分层}
 
-\begin{verbatim}
+\begin{lstlisting}[style=treedir]
 src/main/java/com/ylf/cms/
 |- CmsApplication.java
 |- config/ # 全局配置：MP 插件、WebMvc、自动填充
@@ -658,7 +677,7 @@ src/main/java/com/ylf/cms/
   |- guide/site-map.yaml
   |- templates/ # 13 个 Thymeleaf 模板
   `- static/{css,js/}
-\end{verbatim}
+\end{lstlisting}
 
 \subsection*{\texorpdfstring{\textbf{6.2 模块职责}}{6.2 模块职责}}\label{ux6a21ux5757ux804cux8d23}
 \addcontentsline{toc}{subsection}{6.2 模块职责}
