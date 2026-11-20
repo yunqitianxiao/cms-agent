@@ -1857,40 +1857,557 @@ public class GlobalExceptionHandler {
 \section*{\texorpdfstring{\textbf{十、重难点与解决方案}}{十、重难点与解决方案}}\label{ux516bux91cdux96beux70b9ux4e0eux89e3ux51b3ux65b9ux6848}
 \addcontentsline{toc}{section}{十、重难点与解决方案}
 
-\subsection*{\texorpdfstring{\textbf{10.1 状态机写成表，而不是散落的 if}}{10.1 状态机写成表，而不是散落的 if}}\label{ux72b6ux6001ux673aux5199ux6210ux8868ux800cux4e0dux662fux6563ux843dux7684-if}
-\addcontentsline{toc}{subsection}{10.1 状态机写成表，而不是散落的 if}
+本章把开发中真正卡住的地方拆成\textbf{十二类难点、二十二个具体问题}。每个问题先一句话说清错在哪，再讲怎么改，最后给出改正前与改正后的对照；能在运行环境里复现的用真实请求截图，无法在不改动业务数据的前提下复现的，用代码、SQL 或日志文本对照。
 
-难点在于文章状态在多个接口里被修改，每处都写 if (status == X)，新增一条迁移要改多处，也很难证明没有非法路径。
+\subsection*{\texorpdfstring{\textbf{10.1 文章状态判断分散}}{10.1 文章状态判断分散}}\label{ux72b6ux6001ux673aux5224ux6563}
+\addcontentsline{toc}{subsection}{10.1 文章状态判断分散}
 
-做法是把当前状态加动作到下一状态的映射存成静态表，未命中就抛 INVALID\_STATE。单测逐条断言 7 条合法边、4 组非法组合以及删除规则，非法组合包括草稿直接通过、已发布直接改、已下架再下架、被驳回直接提交。
+\noindent\textbf{问题 1：状态判断散落在提交、审核、下架等多个接口里，每处各写一段 if，新增一条迁移要同时改好几个地方，漏改一处就出现两套口径。}
 
-收益是状态图与代码成为同一份事实，改代码就必须改图。
+\textbf{解决方案：}把“当前状态 + 动作 → 下一状态”的映射集中到一张静态表，接口只负责调用状态机，不再自己判断状态。加一条边只改表里一行，状态图和代码从此是同一份事实。
 
-\subsection*{\texorpdfstring{\textbf{10.2 横向越权：接口权限无法阻止修改他人数据}}{10.2 横向越权：接口权限无法阻止修改他人数据}}\label{ux6a2aux5411ux8d8aux6743ux63a5ux53e3ux6743ux9650ux7ba1ux4e0dux4f4fux6539ux522bux4ebaux7684ux6570ux636e}
-\addcontentsline{toc}{subsection}{10.2 横向越权：接口权限无法阻止修改他人数据}
+改正前，各接口凭记忆写判断，逻辑重复且容易不一致：
 
-难点在于 author 有 article:update:own 权限，AOP 看到权限码就放行，但接口 /api/articles/\{id\} 的 id 可以是别人的稿子。
+\begin{lstlisting}
+// 提交接口里
+if (article.getStatus().equals("DRAFT")) {
+    article.setStatus("PENDING");
+}
+// 审核接口里又写一遍，动作一多就对不齐
+if (article.getStatus().equals("PENDING")) {
+    article.setStatus("PUBLISHED");
+}
+\end{lstlisting}
 
-做法是 AOP 只做第一层，Service 里 checkOwner 做第二层，:any 直接过，:own 必须比对 authorId。用 bob 的草稿 id 实测，以 alice 身份请求，返回 403/40301。
+改正后，七条边集中声明，接口统一走 next 查表：
 
-\subsection*{\texorpdfstring{\textbf{10.5 智能体不得编造不存在的功能}}{10.5 智能体不得编造不存在的功能}}\label{ux667aux80fdux4f53ux4e0dux80fdux7b54ux4e0dux51faux5c31ux7f16}
-\addcontentsline{toc}{subsection}{10.5 智能体不得编造不存在的功能}
+\begin{lstlisting}
+static {
+    edge(ArticleAction.SUBMIT, DRAFT, PENDING);
+    edge(ArticleAction.APPROVE, PENDING, PUBLISHED);
+    edge(ArticleAction.REJECT, PENDING, REJECTED);
+    edge(ArticleAction.WITHDRAW, PENDING, DRAFT);
+    edge(ArticleAction.OFFLINE, PUBLISHED, OFFLINE);
+    edge(ArticleAction.RESUBMIT, OFFLINE, PENDING);
+    edge(ArticleAction.MODIFY, REJECTED, DRAFT);
+}
+// 业务接口里只剩一行
+article.setStatus(ArticleStateMachine
+        .next(statusOf(article), action).name());
+\end{lstlisting}
 
-难点在于让模型自由回答，它一定会编出站点里不存在的页面。
+\noindent\textbf{问题 2：非法迁移靠人记不住，草稿直接审核、已发布再改这类跳步操作无法被系统统一堵死。}
 
-做法是把模型能说什么收缩成封闭集合。启动期生成 9 张卡片，模型只能在里面选 id，越界就丢弃。规则层未命中且模型不可用时就明说系统里没有这个功能，不强行返回卡片。
+\textbf{解决方案：}状态机查不到对应边就抛 INVALID\_STATE，异常文案同时带出当前状态和被拒绝的动作。下面用真实请求复现：对草稿（id 17）执行审核通过，返回 409/40901；走正常路径时返回 200。
 
-\subsection*{\texorpdfstring{\textbf{10.6 敏感信息的误判与日志二次泄漏}}{10.6 敏感信息的误判与日志二次泄漏}}\label{ux654fux611fux4fe1ux606fux7684ux8befux5224ux4e0eux65e5ux5fd7ux4e8cux6b21ux6cc4ux6f0f}
-\addcontentsline{toc}{subsection}{10.6 敏感信息的误判与日志二次泄漏}
+\includegraphics[width=\linewidth]{media/fix02.png}
 
-第一个难点是见数字就拦，会让订单号、统计数字全被误伤，用户很快学会无视提示框。做法是身份证走 GB 11643 校验位，银行卡走 Luhn，18 位数字本身不算命中。同一片段做区间占位，防止 18 位身份证碰巧通过 Luhn 后被同时报成银行卡。
+非法状态迁移前后对比（409/40901 与正常 200 对照）
 
-第二个难点是拦住了提交，但被拒绝的请求参数仍会进 sys\_log。做法是日志写入前用同一套规则打码，判据是日志表里搜不到原文。
+\subsection*{\texorpdfstring{\textbf{10.2 横向越权}}{10.2 横向越权}}\label{ux6a2aux5411ux8d8aux6743}
+\addcontentsline{toc}{subsection}{10.2 横向越权}
 
-\subsection*{\texorpdfstring{\textbf{10.7 问题与方案汇总}}{10.7 问题与方案汇总}}\label{ux95eeux9898ux4e0eux65b9ux6848ux6c47ux603b}
-\addcontentsline{toc}{subsection}{10.7 问题与方案汇总}
+\noindent\textbf{问题 3：作者有 article:update:own 权限，接口级切面看到权限码就放行，但请求路径里的 id 可以是别人的稿子，权限码管不到数据归属。}
 
-非法状态迁移靠显式状态表加 40901 解决，由 ArticleStateMachineTest 逐条断言。并发覆盖靠 @Version 乐观锁解决，并发修改返回 40900。横向越权靠 AOP 加 checkOwner 双层解决，越权返回 40301。N+1 靠三表 join 加分页插件解决，mapper DEBUG 日志只剩 2 条 SQL。排序注入靠逻辑名到物理列的白名单解决，非法 sort 返回 40000。全表更新靠 BlockAttackInnerInterceptor 解决，没有 where 的 update 被拦截。删除孤儿数据靠删除前计数解决，返回 40903。模块越界引用靠 import 扫描测试解决，注入越界 import 后测试变红。引导答非所问靠封闭卡片集合加阈值解决，越界 cardId 被丢弃。敏感信息外泄靠预检、硬拦加日志打码解决，对应 40003、弹窗与日志检查。堆栈外泄靠统一异常处理只回通用文案解决，未知异常返回 50000。
+\textbf{解决方案：}切面只做第一层“能不能进这个接口”，Service 里再做第二层 checkOwner：有 :any 权限直接放行，只有 :own 权限时必须比对 authorId。下面用真实请求复现：作者登录后改 bob 的草稿（id 18），返回 403/40301；操作本人数据时返回 200。
+
+\includegraphics[width=\linewidth]{media/fix01.png}
+
+横向越权前后对比（403/40301 与正常 200 对照）
+
+\noindent\textbf{问题 4：审核员可能审核自己提交的稿件，生产者和审核者若是同一人，内容发布前的独立把关就形同虚设。}
+
+\textbf{解决方案：}在审核入口加 requireAuditable，发现当前用户就是文章作者直接拒绝。由于现有审核员名下没有文章，无法在不造数据的前提下截图，这里用代码对照说明。
+
+改正前，取到文章就往下审核，没有身份隔离：
+
+\begin{lstlisting}
+@Transactional
+public void approve(Long id, String opinion) {
+    CmsArticle article = requireArticle(id);
+    article.setStatus("PUBLISHED"); // 自己的稿也能自己批
+}
+\end{lstlisting}
+
+改正后，先确认审核人不是作者本人：
+
+\begin{lstlisting}
+private CmsArticle requireAuditable(Long id) {
+    CmsArticle article = requireArticle(id);
+    if (UserContext.require().getId()
+            .equals(article.getAuthorId())) {
+        throw new BizException(ResultCode.FORBIDDEN,
+                "不能审核自己提交的文章");
+    }
+    return article;
+}
+\end{lstlisting}
+
+\subsection*{\texorpdfstring{\textbf{10.3 并发编辑互相覆盖}}{10.3 并发编辑互相覆盖}}\label{ux5e76ux53d1ux63a7ux5236}
+\addcontentsline{toc}{subsection}{10.3 并发编辑互相覆盖}
+
+\noindent\textbf{问题 5：两个人同时打开同一篇文章编辑，后保存的人会在毫无提示的情况下覆盖先保存者的修改，丢失内容却没有任何报错。}
+
+\textbf{解决方案：}给文章加 version 字段，更新时带上版本号，版本对不上说明已被他人先改，直接抛冲突让用户刷新重试；同时装配乐观锁拦截器，在 SQL 层兜底。
+
+改正前，不带版本条件，后写覆盖先写：
+
+\begin{lstlisting}
+article.setTitle(newTitle);
+articleMapper.updateById(article);
+// 生成的 SQL 没有版本约束，谁后提交谁生效
+\end{lstlisting}
+
+改正后，先比对版本，更新行数为 0 也判定为冲突：
+
+\begin{lstlisting}
+if (request.getVersion() != null
+        && !request.getVersion().equals(article.getVersion())) {
+    throw new BizException(ResultCode.CONFLICT,
+            "文章已被他人修改，请刷新后重试");
+}
+int rows = articleMapper.updateById(article);
+if (rows == 0) {
+    throw new BizException(ResultCode.CONFLICT,
+            "文章已被他人修改，请刷新后重试");
+}
+\end{lstlisting}
+
+\subsection*{\texorpdfstring{\textbf{10.4 列表查询的 N+1}}{10.4 列表查询的 N+1}}\label{n1}
+\addcontentsline{toc}{subsection}{10.4 列表查询的 N+1}
+
+\noindent\textbf{问题 6：列表先查出文章，再对每一条循环查询分类名、作者名、审核员名，20 条数据会产生 41 条 SQL，数据量一大数据库压力成倍上升。}
+
+\textbf{解决方案：}用一条三表 LEFT JOIN 把分类、作者、审核员一次取齐，列表无论多少条都只执行一条分页 SQL。
+
+改正前，循环内逐条查询，SQL 条数随记录数增长：
+
+\begin{lstlisting}[language={},numbers=none]
+查文章列表 1 条
+for (Article a : list) {
+    查分类 1 条; 查作者 1 条; 查审核员 1 条
+}
+// 20 条记录 -> 1 + 20*2 = 41 条 SQL
+\end{lstlisting}
+
+改正后，一条 SQL 三表关联取齐：
+
+\begin{lstlisting}[language=SQL]
+SELECT a.id, a.title, c.name AS categoryName,
+       u1.nickname AS authorName,
+       u2.nickname AS auditorName, a.version
+FROM cms_article a
+LEFT JOIN cms_category c ON c.id = a.category_id
+LEFT JOIN sys_user u1 ON u1.id = a.author_id
+LEFT JOIN sys_user u2 ON u2.id = a.auditor_id
+WHERE a.deleted = 0
+ORDER BY ${q.orderBy}
+\end{lstlisting}
+
+\subsection*{\texorpdfstring{\textbf{10.5 排序字段注入}}{10.5 排序字段注入}}\label{ux6392ux5e8fux6ce8ux5165}
+\addcontentsline{toc}{subsection}{10.5 排序字段注入}
+
+\noindent\textbf{问题 7：排序参数 sort 要拼进 ORDER BY，而 ORDER BY 后面不能用占位符，直接拼接前端输入就留下 SQL 注入入口，还可能被诱导按密码等敏感列排序。}
+
+\textbf{解决方案：}建立逻辑字段名到物理列名的白名单，前端只能传逻辑名，命中映射才转换为物理列，未命中直接拒绝并列出可选项。下面用真实请求复现：传 sort=password,desc 返回 400/40000；传白名单内的 createTime,desc 返回 200。
+
+\includegraphics[width=\linewidth]{media/fix04.png}
+
+排序字段注入前后对比（400/40000 与白名单 200 对照）
+
+\subsection*{\texorpdfstring{\textbf{10.6 漏写条件导致全表写操作}}{10.6 漏写条件导致全表写操作}}\label{ux5168ux8868ux5199}
+\addcontentsline{toc}{subsection}{10.6 漏写条件导致全表写操作}
+
+\noindent\textbf{问题 8：构造更新或删除时一旦漏写 where 条件，一条语句就会改写或清空整张表，而且这类错误编译期完全发现不了。}
+
+\textbf{解决方案：}装配 BlockAttackInnerInterceptor，在 SQL 执行前拦截没有 where 的 update/delete，从插件层把全表写操作挡在数据库之外。
+
+改正前，条件为空时拼出全表语句：
+
+\begin{lstlisting}[language=SQL]
+-- 本意更新一条，条件却没带上
+UPDATE cms_article SET status = 'OFFLINE';
+\end{lstlisting}
+
+改正后，插件链显式加入防全表攻击拦截器：
+
+\begin{lstlisting}
+MybatisPlusInterceptor interceptor =
+        new MybatisPlusInterceptor();
+interceptor.addInnerInterceptor(
+        new PaginationInnerInterceptor(DbType.MYSQL));
+interceptor.addInnerInterceptor(
+        new OptimisticLockerInnerInterceptor());
+// 无 where 的 update/delete 在这里直接被拦
+interceptor.addInnerInterceptor(
+        new BlockAttackInnerInterceptor());
+\end{lstlisting}
+
+\subsection*{\texorpdfstring{\textbf{10.7 删除产生孤儿数据}}{10.7 删除产生孤儿数据}}\label{ux5220ux9664ux5b64ux513f}
+\addcontentsline{toc}{subsection}{10.7 删除产生孤儿数据}
+
+\noindent\textbf{问题 9：分类下还挂着子分类或文章时直接删除，会让这些数据指向一个不存在的上级，形成孤儿记录，前台树和文章详情都会出现悬空引用。}
+
+\textbf{解决方案：}删除前先统计子分类和文章数量，任一不为 0 就拒绝并返回 40903；停用父分类时同样检查是否还有启用的子分类。
+
+改正前，不做引用检查直接删除：
+
+\begin{lstlisting}
+public void delete(Long id) {
+    categoryMapper.deleteById(id); // 引用它的数据全部悬空
+}
+\end{lstlisting}
+
+改正后，删除前逐项计数，存在引用即拒绝：
+
+\begin{lstlisting}
+public void delete(Long id) {
+    requireCategory(id);
+    if (categoryMapper.countChildren(id) > 0) {
+        throw new BizException(ResultCode.IN_USE,
+                "存在子分类，不能删除");
+    }
+    if (categoryMapper.countArticles(id) > 0) {
+        throw new BizException(ResultCode.IN_USE,
+                "该分类下仍有文章，不能删除");
+    }
+    categoryMapper.deleteById(id);
+}
+\end{lstlisting}
+
+\subsection*{\texorpdfstring{\textbf{10.8 模块越界引用破坏分层}}{10.8 模块越界引用破坏分层}}\label{ux6a21ux5757ux8fb9ux754c}
+\addcontentsline{toc}{subsection}{10.8 模块越界引用破坏分层}
+
+\noindent\textbf{问题 10：随着功能增多，各模块开始随意跨包引用对方的 mapper、entity，分层约束只停留在口头，一旦有人反向依赖就会逐渐缠成一团。}
+
+\textbf{解决方案：}写一个模块边界测试，扫描全部源码的 import，发现跨域引用对方 mapper/entity/controller/config 就判失败，并通过注入一条越界 import 验证测试确实会变红，而不是永远通过的空检查。
+
+改正前，内容模块直接依赖安全模块的 mapper：
+
+\begin{lstlisting}
+package com.ylf.cms.content.service;
+import com.ylf.cms.security.user.mapper.SysUserMapper;
+// 跨域摸到对方的持久层，分层被打穿
+\end{lstlisting}
+
+改正后，边界测试把这种引用识别为违规：
+
+\begin{lstlisting}
+static final Set<String> DOMAINS =
+        Set.of("security", "content", "catalog", "ops");
+// 跨域 import 且命中 mapper/entity/controller/config 即记违规
+if (segments.stream().anyMatch(
+        Set.of("mapper", "entity", "controller",
+               "config")::contains)) {
+    errors.add(imports.group(1));
+}
+assertTrue(errors.isEmpty(), String.join("\n", errors));
+\end{lstlisting}
+
+\subsection*{\texorpdfstring{\textbf{10.9 智能体幻觉与降级}}{10.9 智能体幻觉与降级}}\label{ux667aux80fdux4f53ux5e7bux89c9}
+\addcontentsline{toc}{subsection}{10.9 智能体幻觉与降级}
+
+\noindent\textbf{问题 11：让模型自由生成回答，它会一本正经地编出站点里根本不存在的页面和按钮，用户点过去只能得到 404。}
+
+\textbf{解决方案：}把模型能说的话收缩成封闭卡片集合，模型只允许返回候选卡片的 id，服务端再用 pickByIds 校验，不在站点地图里的 id 一律丢弃。
+
+改正前，模型输出什么就信什么：
+
+\begin{lstlisting}
+String answer = model.generate(userQuestion);
+return parseAsPage(answer); // 模型编的页面直接当真
+\end{lstlisting}
+
+改正后，越界 id 在映射时被过滤掉：
+
+\begin{lstlisting}
+private List<GuideCardVO> pickByIds(
+        List<GuideCardVO> all, List<String> ids) {
+    Map<String, GuideCardVO> byId = all.stream()
+            .collect(Collectors.toMap(
+                    GuideCardVO::getId, c -> c));
+    return ids.stream()
+            .map(byId::get)
+            .filter(Objects::nonNull) // 不存在的 id 丢弃
+            .distinct()
+            .collect(Collectors.toList());
+}
+\end{lstlisting}
+
+\noindent\textbf{问题 12：模型通道关闭或调用超时、报错时，如果强行返回一张卡片，用户会被引导到错误的地方。}
+
+\textbf{解决方案：}模型通道任何异常都静默回落规则路由，规则也未命中时明确告诉用户系统里没有这个功能，而不是硬凑一个入口。
+
+改正前，通道失败仍可能返回空卡片或错误数据：
+
+\begin{lstlisting}
+try {
+    return callModel(message, cards);
+} catch (Exception e) {
+    return someCard; // 失败还硬给一张卡
+}
+\end{lstlisting}
+
+改正后，失败返回空，由上层统一给出“无此功能”的答复：
+
+\begin{lstlisting}
+try {
+    String content = callModel(message, candidates, key);
+    return parse(content);
+} catch (Exception e) {
+    log.warn("LLM 意图通道失败，回落规则路由: {}",
+            e.getMessage());
+    return Optional.empty();
+}
+// 最终无命中时回复：系统里没有这个功能，
+// 我不会编一个不存在的按钮给你
+\end{lstlisting}
+
+\subsection*{\texorpdfstring{\textbf{10.10 敏感信息误判与日志泄漏}}{10.10 敏感信息误判与日志泄漏}}\label{ux654fux611fux4fe1ux606f}
+\addcontentsline{toc}{subsection}{10.10 敏感信息误判与日志泄漏}
+
+\noindent\textbf{问题 13：只要见到一长串数字就拦截，会把订单号、统计数字全部误伤，用户被频繁误报后很快就会无视所有提示。}
+
+\textbf{解决方案：}身份证按 GB 11643 校验位、银行卡按 Luhn 算法二次验证，单纯的 18 位数字若通不过校验位就不算命中，把“长得像”和“真的是”区分开。
+
+改正前，数字位数够了就命中，没有校验位概念：
+
+\begin{lstlisting}
+new Rule("身份证", "[1-9][0-9]{16}[0-9X]",
+        value -> true); // 任何 18 位数字都报
+\end{lstlisting}
+
+改正后，命中正则还要通过校验位函数：
+
+\begin{lstlisting}
+new Rule("身份证",
+        "(?<![0-9])[1-9][0-9]{16}[0-9Xx](?![0-9])",
+        SensitiveInfoDetector::validId);
+new Rule("银行卡",
+        "(?<![0-9])[1-9][0-9]{12,18}(?![0-9])",
+        SensitiveInfoDetector::validCard);
+// 校验位不过，规则不成立
+\end{lstlisting}
+
+\noindent\textbf{问题 14：同一段 18 位号码可能既匹配身份证又匹配银行卡，被重复报成两条，提示冗余还可能互相矛盾。}
+
+\textbf{解决方案：}对命中区间按起点排序，相交或相邻的区间合并成一个并集，掩码时覆盖整个区间，保证同一片段只报一次。
+
+改正前，两条规则各报一条，区间重叠：
+
+\begin{lstlisting}[language={},numbers=none]
+// 同一片段产生两条 Hit
+Hit[身份证, start=0, end=18]
+Hit[银行卡, start=0, end=18]
+\end{lstlisting}
+
+改正后，相交区间合并为一条：
+
+\begin{lstlisting}
+for (Hit hit : hits) {
+    Hit first = merged.get(merged.size() - 1);
+    if (first.getEnd() <= hit.getStart()) {
+        merged.add(hit);
+    } else {
+        // 相交：扩展为两者的并集
+        merged.set(merged.size() - 1, new Hit(
+                hit.getField(), first.getType(),
+                first.getStart(),
+                Math.max(first.getEnd(), hit.getEnd())));
+    }
+}
+\end{lstlisting}
+
+\noindent\textbf{问题 15：请求虽然因敏感内容被拦下，但原始参数仍可能被写进操作日志，等于在日志里又泄漏了一次。}
+
+\textbf{解决方案：}日志落库前用同一套规则递归脱敏，字段名命中口令、令牌等直接替换为 ***，文本内容再走内容掩码，序列化失败也不记录原文。
+
+改正前，参数原样写进日志：
+
+\begin{lstlisting}
+entry.setParams(objectMapper
+        .writeValueAsString(joinPoint.getArgs()));
+// 密码、卡号原文进了 sys_log
+\end{lstlisting}
+
+改正后，统一经 MaskUtil 打码再落库：
+
+\begin{lstlisting}
+// 字段名命中即替换，文本内容再做内容掩码
+object.set(name, KEYS.contains(key)
+        ? TextNode.valueOf("***")
+        : clean(object.get(name)));
+// 切面里调用
+entry.setParams(MaskUtil.mask(
+        joinPoint.getArgs(), objectMapper));
+\end{lstlisting}
+
+\subsection*{\texorpdfstring{\textbf{10.11 异常处理不统一}}{10.11 异常处理不统一}}\label{ux5f02ux5e38ux5904ux7431}
+\addcontentsline{toc}{subsection}{10.11 异常处理不统一}
+
+\noindent\textbf{问题 16：未知异常直接把堆栈信息返回给前端，既暴露类名、SQL 等内部实现，又等于免费送给攻击者一份系统结构情报。}
+
+\textbf{解决方案：}全局异常处理对未知异常只返回“系统内部错误”和 50000，完整堆栈只写进服务端日志，并通过 traceId 让用户报障时能定位到具体请求。
+
+改正前，异常细节直接透出：
+
+\begin{lstlisting}
+@ExceptionHandler(Exception.class)
+public String handle(Exception e) {
+    return e.toString(); // 堆栈、类名全回前端
+}
+\end{lstlisting}
+
+改正后，前端只看到通用文案，堆栈留在日志：
+
+\begin{lstlisting}
+@ExceptionHandler(Exception.class)
+public ResponseEntity<Result<Void>> handleOther(Exception e) {
+    log.error("未捕获异常，类型={}，位置={}",
+            e.getClass().getName(),
+            Arrays.toString(e.getStackTrace()));
+    return ResponseEntity.status(ResultCode.INTERNAL.getStatus())
+            .body(Result.fail(ResultCode.INTERNAL));
+}
+\end{lstlisting}
+
+\noindent\textbf{问题 17：参数校验有方法级、表单绑定、约束违反三种异常，各自返回不同错误码，前端要写一堆分支才能处理。}
+
+\textbf{解决方案：}把 MethodArgumentNotValid、Bind、ConstraintViolation 三类校验异常归并到统一的 40000，错误信息拼接后返回，前端只需按一种方式处理校验失败。
+
+改正前，三类异常各走各的返回：
+
+\begin{lstlisting}[language={},numbers=none]
+// 不同异常返回不同结构、不同码，前端难以统一
+\end{lstlisting}
+
+改正后，三个处理方法都收敛到同一个 badRequest：
+
+\begin{lstlisting}
+@ExceptionHandler(MethodArgumentNotValidException.class)
+public ResponseEntity<Result<Void>> handleValid(...) {
+    return badRequest(joinFieldErrors(e)); // 40000
+}
+@ExceptionHandler(BindException.class)
+public ResponseEntity<Result<Void>> handleBind(...) {
+    return badRequest(joinFieldErrors(e)); // 40000
+}
+@ExceptionHandler(ConstraintViolationException.class)
+public ResponseEntity<Result<Void>> handleConstraint(...) {
+    return badRequest(joinViolations(e));  // 40000
+}
+\end{lstlisting}
+
+\subsection*{\texorpdfstring{\textbf{10.12 会话、日志事务与字符兼容}}{10.12 会话、日志事务与字符兼容}}\label{ux4f1aux8bddux4e8eux517cux5bb9}
+\addcontentsline{toc}{subsection}{10.12 会话、日志事务与字符兼容}
+
+\noindent\textbf{问题 18：登录前若已存在一个匿名会话，登录后仍沿用原会话标识，攻击者可预先固定会话 ID 再诱导用户登录，实施会话固定攻击。}
+
+\textbf{解决方案：}登录成功后先作废旧会话，再创建全新会话存放用户标识，使登录前后的会话 ID 不同。
+
+改正前，复用登录前的会话：
+
+\begin{lstlisting}
+httpRequest.getSession(true)
+        .setAttribute("userId", user.getId());
+// 会话 ID 登录前后不变，可被预先固定
+\end{lstlisting}
+
+改正后，先作废再换新：
+
+\begin{lstlisting}
+HttpSession old = httpRequest.getSession(false);
+if (old != null) {
+    old.invalidate();
+}
+httpRequest.getSession(true)
+        .setAttribute(SessionKeys.LOGIN_USER_ID,
+                user.getId());
+\end{lstlisting}
+
+\noindent\textbf{问题 19：会话里若缓存完整身份，用户被停用或角色被调整后，旧会话在过期前一直带着旧权限，安全策略无法即时生效。}
+
+\textbf{解决方案：}会话里只存 userId，每次请求都回查数据库重新装载身份，一旦用户被删或停用立即返回 null 并作废旧会话，实现停用即踢下线、改角色即生效。
+
+改正前，身份信息一次性存进会话不再更新：
+
+\begin{lstlisting}
+session.setAttribute("loginUser", fullUser);
+// 之后一直读缓存，停用、改角色都不生效
+\end{lstlisting}
+
+改正后，每请求回查，失效即踢：
+
+\begin{lstlisting}
+Long userId = (Long) session
+        .getAttribute(SessionKeys.LOGIN_USER_ID);
+LoginUser user = authService.loadLoginUser(userId);
+if (user == null) {
+    session.invalidate();
+    reject(request, response);
+    return false;
+}
+UserContext.set(user);
+\end{lstlisting}
+
+\noindent\textbf{问题 20：未登录访问受控资源时，接口调用方需要结构化错误，浏览器页面则需要跳回登录页，两者用同一种处理方式必然有一方体验很差。}
+
+\textbf{解决方案：}拦截器按请求路径区分：/api 开头返回 401 JSON，页面请求返回 302 重定向到登录页并带上 next 回跳地址。下面用真实请求复现这两种响应，右侧对照登录成功后正常下发的会话。
+
+\includegraphics[width=\linewidth]{media/fix03.png}
+
+未登录访问前后对比（接口 401 与页面 302，对照登录成功）
+
+\noindent\textbf{问题 21：操作日志若和业务共用一个事务，业务回滚时日志也跟着回滚，最需要追查的那条失败记录反而留不下来。}
+
+\textbf{解决方案：}日志写入声明 REQUIRES\_NEW 独立事务，无论外层业务提交还是回滚，日志都在自己的事务里落库，且日志自身失败不影响主业务。
+
+改正前，共用事务，业务回滚日志一起没：
+
+\begin{lstlisting}
+@Transactional
+public void record(SysLog log) {
+    logMapper.insert(log); // 外层回滚，这条也撤销
+}
+\end{lstlisting}
+
+改正后，独立事务保证日志必留：
+
+\begin{lstlisting}
+@Transactional(propagation = Propagation.REQUIRES_NEW)
+public void record(SysLog sysLog) {
+    try {
+        logMapper.insert(sysLog);
+    } catch (Exception e) {
+        log.warn("写操作日志失败: {}",
+                e.getClass().getSimpleName());
+    }
+}
+\end{lstlisting}
+
+\noindent\textbf{问题 22：库表若用三字节的 utf8 字符集，中文生僻字和 emoji（四字节字符）写入时会报错或被截断，无法保存用户在正文里贴的表情。}
+
+\textbf{解决方案：}所有表统一使用 utf8mb4 字符集，单字符最多支持四字节，配合应用层 UTF-8 连接，中文与 emoji 都能完整存储。
+
+改正前，三字节字符集容纳不下 emoji：
+
+\begin{lstlisting}[language=SQL]
+-- utf8（utf8mb3）下写入四字节字符报错：
+-- Incorrect string value: '\xF0\x9F\x98\x80'
+) ENGINE = InnoDB DEFAULT CHARSET = utf8;
+\end{lstlisting}
+
+改正后，统一四字节字符集：
+
+\begin{lstlisting}[language=SQL]
+CREATE TABLE cms_article (
+    title   VARCHAR(200) NOT NULL,
+    content MEDIUMTEXT   NOT NULL,
+    version INT          NOT NULL DEFAULT 0
+    -- 其余字段略
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4
+  COMMENT = '文章表';
+\end{lstlisting}
 
 \section*{\texorpdfstring{\textbf{十一、AI 辅助·人脑主导}}{十一、AI 辅助·人脑主导}}\label{ux4e5dai-ux8f85ux52a9ux4ebaux8111ux4e3bux5bfc}
 \addcontentsline{toc}{section}{十一、AI 辅助·人脑主导}
