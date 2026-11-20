@@ -7,6 +7,11 @@
 \newunicodechar{✗}{$\times$}
 \newunicodechar{∈}{$\in$}
 \newunicodechar{▼}{$\blacktriangledown$}
+\usepackage{pifont}
+\newcommand{\rone}{\ding{192}}
+\newcommand{\rtwo}{\ding{193}}
+\newcommand{\rthree}{\ding{194}}
+\newcommand{\rfour}{\ding{195}}
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{longtable}
@@ -149,9 +154,17 @@ Java 源文件共 105 个，用 find 命令对 src/main/java 统计。前端模�
 \subsection*{\texorpdfstring{\textbf{2.3 角色定义}}{2.3 角色定义}}\label{ux89d2ux8272ux5b9aux4e49}
 \addcontentsline{toc}{subsection}{2.3 角色定义}
 
-系统分四个角色。游客编码 GUEST，只读浏览前台已发布文章，对应普通读者。作者编码 AUTHOR，撰写、修改自己的稿件并提交审核，对应编辑和记者。审核员编码 AUDITOR，负责审核稿件、发布与下架，对应内容主管。管理员编码 ADMIN，全面管理用户、角色、权限、分类与日志。
+系统分四个角色：
 
-一个用户可拥有多个角色，最终权限是所属全部角色权限的并集。注册用户默认分配 AUTHOR（RoleCode.DEFAULT）。
+\rone\textbf{游客（GUEST）}：只读浏览前台已发布文章，对应普通读者。
+
+\rtwo\textbf{作者（AUTHOR）}：撰写、修改自己的稿件并提交审核，对应编辑和记者。
+
+\rthree\textbf{审核员（AUDITOR）}：负责审核稿件、发布与下架，对应内容主管。
+
+\rfour\textbf{管理员（ADMIN）}：全面管理用户、角色、权限、分类与日志。
+
+注：一个用户可拥有多个角色，最终权限是所属全部角色权限的并集；注册用户默认分配 AUTHOR（RoleCode.DEFAULT）。
 
 \subsection*{\texorpdfstring{\textbf{2.4 权限点与权限矩阵}}{2.4 权限点与权限矩阵}}\label{ux6743ux9650ux70b9ux4e0eux6743ux9650ux77e9ux9635}
 \addcontentsline{toc}{subsection}{2.4 权限点与权限矩阵}
@@ -199,8 +212,6 @@ role:manage & 角色管理 & ✗ & ✗ & ✗ & ✓ \\
 log:read & 查看操作日志 & ✗ & ✗ & ✗ & ✓ \\
 guide:use & 使用站内引导 & ✓ & ✓ & ✓ & ✓ \\
 \end{longtable}
-
-矩阵中的"✓/✗"与 sql/data.sql 的 sys\_role\_permission 插入语句一一对应，不是凭印象填写。管理员用 SELECT 4, id FROM sys\_permission 全量授权，新增权限点无需改脚本。
 
 \subsection*{\texorpdfstring{\textbf{2.5 核心业务场景}}{2.5 核心业务场景}}\label{ux6838ux5fc3ux4e1aux52a1ux573aux666f}
 \addcontentsline{toc}{subsection}{2.5 核心业务场景}
